@@ -449,7 +449,27 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                     _LOGGER.info("Chime removed via WebSocket: %s", self.chimes[chime_id].name)
                     del self.chimes[chime_id]
 
+        # Handle other device types (speaker, bridge, doorlock, aiProcessor, aiPort, linkStation)
+        # These devices are recognized but not yet fully implemented with entities
+        elif model_key in ("speaker", "bridge", "doorlock", "aiprocessor", "aiport", "linkstation"):
+            _LOGGER.debug(
+                "Received WebSocket update for %s device (id=%s, name=%s, state=%s) - not yet fully implemented",
+                model_key,
+                payload.get("id"),
+                payload.get("name"),
+                payload.get("state"),
+            )
+
+        else:
+            _LOGGER.debug("Unknown device type in WebSocket message: %s", model_key)
+
         # Notify all listeners of the update
+        _LOGGER.debug(
+            "Notifying entities of WebSocket update: %d cameras, %d sensors, %d lights",
+            len(self.cameras),
+            len(self.sensors),
+            len(self.lights),
+        )
         self.async_set_updated_data(
             {
                 "nvr": self.nvr,

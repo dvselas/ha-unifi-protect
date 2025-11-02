@@ -1271,22 +1271,47 @@ class UniFiProtectAPI:
         """Handle incoming device WebSocket message.
 
         Args:
-            data: Message data with format: {"type": "add", "item": {...}}
-        """
-        _LOGGER.debug("Device WebSocket message: %s", data)
+            data: Message data with format: {"type": "add"|"update"|"remove", "item": {...}}
 
-        # Extract the action type and item
-        action = data.get("type", "update")  # "add" maps to our "update" action
+        The WebSocket sends updates for all device types:
+        - camera, light, sensor, chime, viewer, speaker, bridge,
+          doorlock, aiProcessor, aiPort, linkStation
+        """
+        message_type = data.get("type")
         item = data.get("item", {})
 
         if not item:
+            _LOGGER.debug("WebSocket message has no item, skipping")
             return
 
-        # Convert "add" type to action format that coordinator expects
-        # The new API uses "add" for all updates, we map to "update" for our internal handling
+        model_key = item.get("modelKey")
+        device_id = item.get("id")
+        device_name = item.get("name", "Unknown")
+
+        _LOGGER.debug(
+            "Device WebSocket: type=%s, modelKey=%s, id=%s, name=%s, state=%s",
+            message_type,
+            model_key,
+            device_id,
+            device_name,
+            item.get("state"),
+        )
+
+        # Map API message type to internal action format
+        # API uses "add" for all updates (both new devices and changes)
+        # We map it to "update" for simplicity - coordinator handles both cases
+        if message_type == "add":
+            action = "update"  # Treat "add" as "update" - coordinator will handle appropriately
+        elif message_type == "remove":
+            action = "remove"
+        else:
+            # Default to update for any other type
+            action = "update"
+
+        # Build message in format coordinator expects
         message = {
-            "action": "update",
-            "modelKey": item.get("modelKey"),
+            "action": action,
+            "modelKey": model_key,
             "data": item,
         }
 
@@ -1295,7 +1320,7 @@ class UniFiProtectAPI:
             try:
                 await callback(message)
             except Exception as err:
-                _LOGGER.error("Error in device callback: %s", err)
+                _LOGGER.error("Error in device WebSocket callback: %s", err)
 
     async def _handle_event_message(self, data: dict[str, Any]) -> None:
         """Handle incoming event WebSocket message.
