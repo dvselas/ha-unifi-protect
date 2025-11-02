@@ -1,0 +1,5 @@
+{
+  "name": "UniFi Protect",
+  "render_readme": true,
+  "domains": ["unifi_protect"]
+}

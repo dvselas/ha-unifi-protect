@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to UniFi Protect v6+",
+        "description": "Enter your UniFi Protect connection details. You need to generate an API token in the Protect UI (Settings > Users > API).",
+        "data": {
+          "host": "Host (IP or hostname)",
+          "api_token": "API Token",
+          "verify_ssl": "Verify SSL certificate"
+        },
+        "data_description": {
+          "host": "The IP address or hostname of your UniFi Protect Console/NVR",
+          "api_token": "API token generated in Protect UI (Settings > Users > API)",
+          "verify_ssl": "Verify SSL certificate (disable for self-signed certificates)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to UniFi Protect. Check host and network connection.",
+      "invalid_auth": "Invalid API token. Please check your token and try again.",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This UniFi Protect instance is already configured"
+    }
+  }
+}

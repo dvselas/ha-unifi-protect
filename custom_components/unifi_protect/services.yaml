@@ -1,0 +1,363 @@
+ptz_start_patrol:
+  name: Start PTZ Patrol
+  description: Start a PTZ camera patrol on a specific slot
+  target:
+    entity:
+      domain: camera
+      integration: unifi_protect
+  fields:
+    slot:
+      name: Patrol Slot
+      description: Patrol slot number (0-4)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 4
+          mode: box
+
+ptz_stop_patrol:
+  name: Stop PTZ Patrol
+  description: Stop the active PTZ camera patrol
+  target:
+    entity:
+      domain: camera
+      integration: unifi_protect
+
+ptz_goto_preset:
+  name: Go to PTZ Preset
+  description: Move PTZ camera to a preset position
+  target:
+    entity:
+      domain: camera
+      integration: unifi_protect
+  fields:
+    preset:
+      name: Preset Position
+      description: Preset slot number (-1 for home position, 0+ for saved presets)
+      required: true
+      selector:
+        number:
+          min: -1
+          max: 99
+          mode: box
+
+trigger_alarm:
+  name: Trigger Alarm
+  description: Send a webhook to trigger UniFi Protect alarms configured with the specified trigger ID
+  fields:
+    trigger_id:
+      name: Trigger ID
+      description: User-defined string to trigger specific alarms (must match alarm configuration in Protect)
+      required: true
+      example: "home_security"
+      selector:
+        text:
+
+set_camera_mic_volume:
+  name: Set Camera Microphone Volume
+  description: Set the microphone volume for a camera
+  target:
+    entity:
+      domain: camera
+      integration: unifi_protect
+  fields:
+    volume:
+      name: Volume
+      description: Microphone volume (0-100)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+
+set_camera_video_mode:
+  name: Set Camera Video Mode
+  description: Set the video mode for a camera
+  target:
+    entity:
+      domain: camera
+      integration: unifi_protect
+  fields:
+    mode:
+      name: Video Mode
+      description: Video mode to set
+      required: true
+      selector:
+        select:
+          options:
+            - label: Default
+              value: default
+            - label: High FPS
+              value: highFps
+            - label: Sport
+              value: sport
+            - label: Slow Shutter
+              value: slowShutter
+            - label: LPR Reflex
+              value: lprReflex
+            - label: LPR None Reflex
+              value: lprNoneReflex
+
+set_camera_hdr_mode:
+  name: Set Camera HDR Mode
+  description: Set the High Dynamic Range mode for a camera
+  target:
+    entity:
+      domain: camera
+      integration: unifi_protect
+  fields:
+    mode:
+      name: HDR Mode
+      description: HDR mode to set
+      required: true
+      selector:
+        select:
+          options:
+            - label: Auto
+              value: auto
+            - label: On
+              value: "on"
+            - label: Off
+              value: "off"
+
+set_camera_osd_settings:
+  name: Set Camera OSD Settings
+  description: Configure On-Screen Display settings for a camera
+  target:
+    entity:
+      domain: camera
+      integration: unifi_protect
+  fields:
+    show_name:
+      name: Show Name
+      description: Display camera name on OSD
+      selector:
+        boolean:
+    show_date:
+      name: Show Date
+      description: Display date/time on OSD
+      selector:
+        boolean:
+    show_logo:
+      name: Show Logo
+      description: Display UniFi logo in bottom right corner
+      selector:
+        boolean:
+    show_debug:
+      name: Show Debug
+      description: Display debug information on OSD
+      selector:
+        boolean:
+    overlay_location:
+      name: Overlay Location
+      description: Location of the OSD overlay
+      selector:
+        select:
+          options:
+            - label: Top Left
+              value: topLeft
+            - label: Top Middle
+              value: topMiddle
+            - label: Top Right
+              value: topRight
+            - label: Bottom Left
+              value: bottomLeft
+            - label: Bottom Middle
+              value: bottomMiddle
+            - label: Bottom Right
+              value: bottomRight
+
+set_camera_lcd_message:
+  name: Set Doorbell LCD Message
+  description: Set the LCD message on a UniFi Doorbell
+  target:
+    entity:
+      domain: camera
+      integration: unifi_protect
+  fields:
+    message_type:
+      name: Message Type
+      description: Type of message to display
+      required: true
+      selector:
+        select:
+          options:
+            - label: Leave Package at Door
+              value: LEAVE_PACKAGE_AT_DOOR
+            - label: Do Not Disturb
+              value: DO_NOT_DISTURB
+            - label: Custom Message
+              value: CUSTOM_MESSAGE
+    custom_text:
+      name: Custom Text
+      description: Custom text to display (only for CUSTOM_MESSAGE type)
+      selector:
+        text:
+    reset_at:
+      name: Reset At
+      description: UNIX timestamp when message should be removed (leave empty for default timeout, set to 0 for forever)
+      selector:
+        number:
+          min: 0
+          mode: box
+
+set_smart_detect_settings:
+  name: Set Smart Detection Settings
+  description: Configure smart detection object and audio types for a camera
+  target:
+    entity:
+      domain: camera
+      integration: unifi_protect
+  fields:
+    object_types:
+      name: Object Types
+      description: Smart detection object types to enable
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Person
+              value: person
+            - label: Vehicle
+              value: vehicle
+            - label: Package
+              value: package
+            - label: License Plate
+              value: licensePlate
+            - label: Face
+              value: face
+            - label: Animal
+              value: animal
+    audio_types:
+      name: Audio Types
+      description: Smart detection audio types to enable
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Smoke Alarm
+              value: alrmSmoke
+            - label: CO Alarm
+              value: alrmCmonx
+            - label: Siren
+              value: alrmSiren
+            - label: Baby Cry
+              value: alrmBabyCry
+            - label: Speaking
+              value: alrmSpeak
+            - label: Dog Bark
+              value: alrmBark
+            - label: Burglar
+              value: alrmBurglar
+            - label: Car Horn
+              value: alrmCarHorn
+            - label: Glass Break
+              value: alrmGlassBreak
+
+upload_asset_file:
+  name: Upload Device Asset File
+  description: Upload a custom animation or media file for use with UniFi Protect devices (e.g., doorbell animations)
+  fields:
+    file_path:
+      name: File Path
+      description: Full path to the file to upload (must be accessible by Home Assistant)
+      required: true
+      example: "/config/www/doorbell_animation.gif"
+      selector:
+        text:
+    file_type:
+      name: File Type
+      description: Type of asset file
+      required: false
+      default: "animations"
+      selector:
+        select:
+          options:
+            - label: Animations
+              value: animations
+
+list_asset_files:
+  name: List Device Asset Files
+  description: Get a list of all uploaded device asset files
+  fields:
+    file_type:
+      name: File Type
+      description: Type of asset files to list
+      required: false
+      default: "animations"
+      selector:
+        select:
+          options:
+            - label: Animations
+              value: animations
+
+pair_chime_to_camera:
+  name: Pair Chime to Camera
+  description: Pair or unpair a chime with a specific camera
+  fields:
+    chime_id:
+      name: Chime ID
+      description: The unique ID of the chime device
+      required: true
+      example: "abc123def456"
+      selector:
+        text:
+    camera_id:
+      name: Camera ID
+      description: The unique ID of the camera to pair/unpair
+      required: true
+      example: "def456ghi789"
+      selector:
+        text:
+    pair:
+      name: Pair
+      description: True to pair the camera with the chime, False to unpair
+      required: false
+      default: true
+      selector:
+        boolean:
+
+set_chime_ring_settings:
+  name: Set Chime Ring Settings
+  description: Configure ring settings for a specific camera on a chime
+  fields:
+    chime_id:
+      name: Chime ID
+      description: The unique ID of the chime device
+      required: true
+      example: "abc123def456"
+      selector:
+        text:
+    camera_id:
+      name: Camera ID
+      description: The unique ID of the camera to configure
+      required: true
+      example: "def456ghi789"
+      selector:
+        text:
+    volume:
+      name: Volume
+      description: Ring volume level (0-100)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+    repeat_times:
+      name: Repeat Times
+      description: How many times to repeat the ringtone (1-10)
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+    ringtone_id:
+      name: Ringtone ID
+      description: ID of the ringtone to play
+      required: false
+      selector:
+        text:
