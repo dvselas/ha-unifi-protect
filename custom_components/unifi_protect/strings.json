@@ -17,9 +17,10 @@
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to UniFi Protect. Check host and network connection.",
-      "invalid_auth": "Invalid API token. Please check your token and try again.",
-      "unknown": "Unexpected error occurred"
+      "cannot_connect": "Failed to connect to UniFi Protect. Check: 1) Host/IP is correct, 2) UniFi Protect is running, 3) Network connectivity. If using self-signed certificate, disable SSL verification.",
+      "invalid_auth": "Invalid API token or insufficient permissions. Check token in UniFi Protect UI (Settings > Users > API) and ensure it has full access.",
+      "unsupported_version": "UniFi Protect version not supported or API endpoints unavailable. This integration requires UniFi Protect v6.1.79 or newer. Current error may indicate older version or service not fully started.",
+      "unknown": "Unexpected error occurred. Check Home Assistant logs for details."
     },
     "abort": {
       "already_configured": "This UniFi Protect instance is already configured"

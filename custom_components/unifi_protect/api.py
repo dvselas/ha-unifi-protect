@@ -128,6 +128,8 @@ class UniFiProtectAPI:
         if "ssl" not in kwargs:
             kwargs["ssl"] = self._ssl_context
 
+        _LOGGER.debug("Making %s request to %s", method, url)
+
         try:
             async with session.request(
                 method,
@@ -135,26 +137,92 @@ class UniFiProtectAPI:
                 headers=self._headers,
                 **kwargs,
             ) as response:
+                _LOGGER.debug("Response status: %s for %s %s", response.status, method, endpoint)
+
+                # Handle authentication errors
                 if response.status == 401:
-                    raise AuthenticationError("Invalid API token")
+                    _LOGGER.error("Authentication failed: Invalid API token")
+                    raise AuthenticationError("Invalid API token. Please check your API token in UniFi Protect settings.")
 
                 if response.status == 403:
-                    raise AuthenticationError("Insufficient permissions")
+                    _LOGGER.error("Authentication failed: Insufficient permissions")
+                    raise AuthenticationError("API token has insufficient permissions. Ensure the token has full access.")
 
+                # Handle not found
+                if response.status == 404:
+                    error_msg = f"Endpoint not found: {endpoint}"
+                    _LOGGER.error("%s (This might indicate an API version mismatch)", error_msg)
+                    raise ProtectAPIError(f"{error_msg}. This integration requires UniFi Protect v6.1.79 or later.")
+
+                # Handle server errors
+                if response.status == 500:
+                    try:
+                        error_data = await response.text()
+                        _LOGGER.error("Server error (500) for %s: %s", url, error_data[:500])
+                    except:
+                        pass
+                    raise ProtectAPIError(
+                        f"UniFi Protect server error (500) at {endpoint}. "
+                        f"This may indicate: 1) API endpoint not available in your UniFi Protect version, "
+                        f"2) Server is still starting up, or 3) API token permissions issue. "
+                        f"Required version: v6.1.79+. Check UniFi Protect logs for details."
+                    )
+
+                if response.status == 502:
+                    _LOGGER.error("Bad Gateway (502): UniFi Protect service may be unavailable")
+                    raise ConnectionError("UniFi Protect service is unavailable (502 Bad Gateway). The service may be restarting.")
+
+                if response.status == 503:
+                    _LOGGER.error("Service Unavailable (503)")
+                    raise ConnectionError("UniFi Protect service is temporarily unavailable (503). Please try again in a few moments.")
+
+                # Raise for any other error status
                 response.raise_for_status()
 
                 # Handle empty responses
                 if response.status == 204:
                     return {}
 
-                return await response.json()
+                # Parse JSON response
+                try:
+                    return await response.json()
+                except aiohttp.ContentTypeError as err:
+                    _LOGGER.error("Invalid JSON response from %s: %s", url, err)
+                    response_text = await response.text()
+                    _LOGGER.debug("Response content: %s", response_text[:500])
+                    raise ProtectAPIError(f"Invalid JSON response from {endpoint}")
 
+        except AuthenticationError:
+            # Re-raise authentication errors as-is
+            raise
+        except ConnectionError:
+            # Re-raise connection errors as-is
+            raise
+        except ProtectAPIError:
+            # Re-raise API errors as-is
+            raise
+        except aiohttp.ClientConnectorError as err:
+            _LOGGER.error("Connection error: Cannot reach %s - %s", self.host, err)
+            raise ConnectionError(
+                f"Cannot connect to UniFi Protect at {self.host}. "
+                f"Please check: 1) Host/IP address is correct, 2) UniFi Protect is running, "
+                f"3) Network connectivity, 4) Firewall settings."
+            ) from err
+        except aiohttp.ClientSSLError as err:
+            _LOGGER.error("SSL error connecting to %s: %s", self.host, err)
+            raise ConnectionError(
+                f"SSL certificate error connecting to {self.host}. "
+                f"If using self-signed certificate, disable 'Verify SSL' in configuration."
+            ) from err
         except aiohttp.ClientError as err:
-            _LOGGER.error("Connection error: %s", err)
-            raise ConnectionError(f"Failed to connect to {self.host}") from err
+            _LOGGER.error("HTTP client error: %s", err)
+            raise ConnectionError(f"Connection error: {err}") from err
+        except asyncio.TimeoutError as err:
+            _LOGGER.error("Timeout connecting to %s", self.host)
+            raise ConnectionError(f"Connection timeout. UniFi Protect at {self.host} did not respond in time.") from err
         except Exception as err:
-            _LOGGER.error("Unexpected error: %s", err)
-            raise ProtectAPIError(f"API request failed: {err}") from err
+            _LOGGER.exception("Unexpected error making request to %s", url)
+            raise ProtectAPIError(f"Unexpected error: {err}") from err
 
     async def get(self, endpoint: str, **kwargs: Any) -> dict[str, Any] | list[Any]:
         """Make a GET request."""
@@ -444,16 +512,33 @@ class UniFiProtectAPI:
         Raises:
             AuthenticationError: If authentication fails
             ConnectionError: If connection fails
+            ProtectAPIError: If API version incompatible
         """
+        _LOGGER.info("Verifying connection to UniFi Protect at %s", self.host)
+
         try:
-            # Try to get application info to verify connection
-            await self.get_application_info()
+            # Try to get application info to verify connection (v6+ API)
+            app_info = await self.get_application_info()
+            _LOGGER.info("Successfully connected to UniFi Protect. Version info: %s",
+                        app_info.get("version", "unknown"))
             return True
-        except (AuthenticationError, ConnectionError):
+        except AuthenticationError as err:
+            _LOGGER.error("Authentication failed: %s", err)
+            raise
+        except ConnectionError as err:
+            _LOGGER.error("Connection failed: %s", err)
+            raise
+        except ProtectAPIError as err:
+            # Check if this is a version issue
+            if "500" in str(err) or "404" in str(err):
+                _LOGGER.error(
+                    "API endpoint error. This may indicate UniFi Protect version is older than v6.1.79. "
+                    "Error: %s", err
+                )
             raise
         except Exception as err:
-            _LOGGER.error("Failed to verify connection: %s", err)
-            return False
+            _LOGGER.exception("Unexpected error verifying connection")
+            raise ProtectAPIError(f"Failed to verify connection: {err}") from err
 
     async def get_bootstrap(self) -> dict[str, Any]:
         """Get bootstrap data containing all devices and settings.

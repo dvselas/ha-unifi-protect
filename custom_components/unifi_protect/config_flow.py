@@ -14,7 +14,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import aiohttp_client
 import homeassistant.helpers.config_validation as cv
 
-from .api import AuthenticationError, ConnectionError, UniFiProtectAPI
+from .api import AuthenticationError, ConnectionError, ProtectAPIError, UniFiProtectAPI
 from .const import CONF_API_TOKEN, CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,7 +33,11 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     Raises:
         AuthenticationError: If authentication fails
         ConnectionError: If connection fails
+        ProtectAPIError: If API version incompatible
     """
+    _LOGGER.info("Validating UniFi Protect connection to %s (SSL verify: %s)",
+                data[CONF_HOST], data.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL))
+
     session = aiohttp_client.async_get_clientsession(hass)
 
     api = UniFiProtectAPI(
@@ -43,16 +47,23 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         verify_ssl=data.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
     )
 
-    # Verify connection
-    await api.verify_connection()
+    try:
+        # Verify connection
+        await api.verify_connection()
 
-    # Get bootstrap to extract NVR name
-    bootstrap = await api.get_bootstrap()
-    nvr_name = bootstrap.get("nvr", {}).get("name", "UniFi Protect")
+        # Get bootstrap to extract NVR name
+        _LOGGER.debug("Fetching bootstrap data for NVR name")
+        bootstrap = await api.get_bootstrap()
+        nvr_name = bootstrap.get("nvr", {}).get("name", "UniFi Protect")
+        _LOGGER.info("Successfully validated connection. NVR name: %s", nvr_name)
 
-    await api.close()
+        return {"title": nvr_name}
 
-    return {"title": nvr_name}
+    except Exception as err:
+        _LOGGER.error("Validation failed: %s", err)
+        raise
+    finally:
+        await api.close()
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -81,15 +92,19 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data=user_input,
                 )
 
-            except AuthenticationError:
-                _LOGGER.error("Authentication failed")
+            except AuthenticationError as err:
+                _LOGGER.error("Authentication failed: %s", err)
                 errors["base"] = "invalid_auth"
-            except ConnectionError:
-                _LOGGER.error("Connection failed")
+            except ConnectionError as err:
+                _LOGGER.error("Connection failed: %s", err)
                 errors["base"] = "cannot_connect"
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
+            except Exception as err:  # pylint: disable=broad-except
+                _LOGGER.exception("Unexpected exception during setup: %s", err)
+                # Check if it's a version/API error
+                if "500" in str(err) or "404" in str(err) or "version" in str(err).lower():
+                    errors["base"] = "unsupported_version"
+                else:
+                    errors["base"] = "unknown"
 
         # Define the configuration schema
         data_schema = vol.Schema(
