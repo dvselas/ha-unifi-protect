@@ -63,12 +63,23 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
             self.nvr = ProtectNVR.from_api_data(bootstrap)
 
             # Fetch NVR v1 API data for additional details (doorbell settings)
+            # If NVR endpoint not available, use application info instead
             try:
                 nvr_v1_data = await self.api.get_nvr_v1()
                 if self.nvr and nvr_v1_data:
                     self.nvr.update(nvr_v1_data)
             except Exception as err:
-                _LOGGER.warning("Error fetching NVR v1 API data: %s", err)
+                # Try fallback to application info if NVR endpoint doesn't exist
+                if "not found" in str(err).lower() or "404" in str(err):
+                    _LOGGER.debug("NVR v1 endpoint not available, trying application info")
+                    try:
+                        app_info = await self.api.get_application_info()
+                        if self.nvr and app_info:
+                            self.nvr.update(app_info)
+                    except Exception as app_err:
+                        _LOGGER.debug("Error fetching application info: %s", app_err)
+                else:
+                    _LOGGER.warning("Error fetching NVR v1 API data: %s", err)
                 # Don't fail the entire update if NVR v1 API fails
 
             # Update cameras

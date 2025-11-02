@@ -151,7 +151,11 @@ class UniFiProtectAPI:
                 # Handle not found
                 if response.status == 404:
                     error_msg = f"Endpoint not found: {endpoint}"
-                    _LOGGER.error("%s (This might indicate an API version mismatch)", error_msg)
+                    # Log as debug for /nvr endpoint since it's expected to not exist in some versions
+                    if "/nvr" in endpoint:
+                        _LOGGER.debug("%s (endpoint not available in this UniFi Protect version, will use fallback)", error_msg)
+                    else:
+                        _LOGGER.error("%s (This might indicate an API version mismatch)", error_msg)
                     raise ProtectAPIError(f"{error_msg}. This integration requires UniFi Protect v6.1.79 or later.")
 
                 # Handle rate limiting
