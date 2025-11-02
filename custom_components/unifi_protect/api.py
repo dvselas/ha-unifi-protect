@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import ssl
 from typing import Any, Callable
 from urllib.parse import urljoin
 
@@ -67,12 +68,27 @@ class UniFiProtectAPI:
             "Content-Type": "application/json",
         }
 
+    @property
+    def _ssl_context(self) -> bool | ssl.SSLContext:
+        """Get SSL context for requests.
+
+        Returns:
+            False if SSL verification disabled, True/SSLContext otherwise
+        """
+        if not self._verify_ssl:
+            # Create SSL context that doesn't verify certificates
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            return ssl_context
+        return True  # Use default SSL verification
+
     async def _get_session(self) -> ClientSession:
         """Get or create aiohttp session."""
         if self._session is None:
-            self._session = aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(ssl=self._verify_ssl)
-            )
+            # Create connector with appropriate SSL context
+            connector = aiohttp.TCPConnector(ssl=self._ssl_context if not self._verify_ssl else None)
+            self._session = aiohttp.ClientSession(connector=connector)
         return self._session
 
     async def close(self) -> None:
@@ -106,6 +122,11 @@ class UniFiProtectAPI:
         """
         url = urljoin(self.host, endpoint)
         session = await self._get_session()
+
+        # Pass SSL context to request (important when using shared session from HA)
+        # This overrides the session's default SSL configuration
+        if "ssl" not in kwargs:
+            kwargs["ssl"] = self._ssl_context
 
         try:
             async with session.request(
@@ -232,6 +253,7 @@ class UniFiProtectAPI:
                 url,
                 headers={"X-API-KEY": self._api_token},  # Don't include Content-Type, aiohttp sets it
                 data=form_data,
+                ssl=self._ssl_context,
             ) as response:
                 if response.status == 401:
                     raise AuthenticationError("Invalid API token")
@@ -640,7 +662,7 @@ class UniFiProtectAPI:
         url = urljoin(self.host, f"/proxy/protect/integration/v1/cameras/{camera_id}/snapshot")
 
         async with session.get(
-            url, headers=self._headers, params=params
+            url, headers=self._headers, params=params, ssl=self._ssl_context
         ) as response:
             response.raise_for_status()
             return await response.read()
@@ -896,7 +918,7 @@ class UniFiProtectAPI:
             url = self.get_camera_snapshot_url(camera_id)
             session = await self._get_session()
 
-            async with session.get(url, headers=self._headers) as response:
+            async with session.get(url, headers=self._headers, ssl=self._ssl_context) as response:
                 if response.status == 200:
                     return await response.read()
 
@@ -1021,7 +1043,7 @@ class UniFiProtectAPI:
                 async with session.ws_connect(
                     url,
                     headers=self._headers,
-                    ssl=self._verify_ssl,
+                    ssl=self._ssl_context,
                 ) as ws:
                     if ws_type == "devices":
                         self._ws_devices = ws
