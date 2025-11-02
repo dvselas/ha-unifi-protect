@@ -169,7 +169,7 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
 
             # Update lights (using new v1 API)
             try:
-                lights_data = await self.api.get_lights()
+                lights_data = await self.api.get_lights_v1()
                 current_light_ids = set()
 
                 for light_data in lights_data:

@@ -934,7 +934,15 @@ class UniFiProtectAPI:
     # Light methods
 
     async def get_lights(self) -> list[dict[str, Any]]:
-        """Get all lights.
+        """Get all lights using Integration API v1.
+
+        Returns:
+            List of light data
+        """
+        return await self.get_lights_v1()
+
+    async def get_lights_v1(self) -> list[dict[str, Any]]:
+        """Get all lights using v1 API.
 
         Returns:
             List of light data
