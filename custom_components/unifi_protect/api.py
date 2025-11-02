@@ -154,6 +154,14 @@ class UniFiProtectAPI:
                     _LOGGER.error("%s (This might indicate an API version mismatch)", error_msg)
                     raise ProtectAPIError(f"{error_msg}. This integration requires UniFi Protect v6.1.79 or later.")
 
+                # Handle rate limiting
+                if response.status == 429:
+                    _LOGGER.warning("Rate limit exceeded (429) for %s", endpoint)
+                    raise ConnectionError(
+                        "UniFi Protect API rate limit exceeded. Too many requests sent too quickly. "
+                        "Please wait a few seconds and try again."
+                    )
+
                 # Handle server errors
                 if response.status == 500:
                     try:
@@ -543,40 +551,84 @@ class UniFiProtectAPI:
     async def get_bootstrap(self) -> dict[str, Any]:
         """Get bootstrap data containing all devices and settings using Integration API v1.
 
-        This method fetches data from multiple v1 endpoints and combines them into
-        a bootstrap-like structure for compatibility with the rest of the integration.
+        This method fetches data from multiple v1 endpoints sequentially with delays
+        to avoid rate limiting. Combined into a bootstrap-like structure for compatibility.
 
         Returns:
             Bootstrap data with all cameras, sensors, lights, chimes, and configuration (includes injected host field in nvr data)
         """
         _LOGGER.debug("Fetching bootstrap data from Integration API v1 endpoints")
 
-        # Fetch all data from v1 endpoints in parallel for better performance
+        # Fetch data sequentially with small delays to avoid rate limiting
+        # UniFi Protect API has rate limits, so we can't fetch all endpoints simultaneously
+
+        nvr_data = {}
+        cameras_data = []
+        sensors_data = []
+        lights_data = []
+        chimes_data = []
+        viewers_data = []
+        liveviews_data = []
+
         try:
-            results = await asyncio.gather(
-                self.get_nvr_v1(),
-                self.get_cameras_v1(),
-                self.get_sensors_v1(),
-                self.get_lights_v1(),
-                self.get_chimes(),
-                self.get_viewers(),
-                self.get_liveviews(),
-                return_exceptions=True
-            )
+            # Fetch NVR data first - try v1 endpoint, fallback to application info
+            try:
+                nvr_data = await self.get_nvr_v1()
+                await asyncio.sleep(0.2)  # 200ms delay
+            except ProtectAPIError as err:
+                # If NVR v1 endpoint doesn't exist, try application info as fallback
+                if "not found" in str(err).lower():
+                    _LOGGER.info("NVR v1 endpoint not available, using application info instead")
+                    try:
+                        nvr_data = await self.get_application_info()
+                        await asyncio.sleep(0.2)
+                    except Exception as app_err:
+                        _LOGGER.warning("Error fetching application info: %s", app_err)
+                else:
+                    _LOGGER.warning("Error fetching nvr data: %s", err)
+            except Exception as err:
+                _LOGGER.warning("Error fetching nvr data: %s", err)
 
-            nvr_data = results[0] if not isinstance(results[0], Exception) else {}
-            cameras_data = results[1] if not isinstance(results[1], Exception) else []
-            sensors_data = results[2] if not isinstance(results[2], Exception) else []
-            lights_data = results[3] if not isinstance(results[3], Exception) else []
-            chimes_data = results[4] if not isinstance(results[4], Exception) else []
-            viewers_data = results[5] if not isinstance(results[5], Exception) else []
-            liveviews_data = results[6] if not isinstance(results[6], Exception) else []
+            # Fetch cameras
+            try:
+                cameras_data = await self.get_cameras_v1()
+                await asyncio.sleep(0.2)
+            except Exception as err:
+                _LOGGER.warning("Error fetching cameras data: %s", err)
 
-            # Log any errors but don't fail the entire bootstrap
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    endpoint_names = ["nvr", "cameras", "sensors", "lights", "chimes", "viewers", "liveviews"]
-                    _LOGGER.warning("Error fetching %s data: %s", endpoint_names[i], result)
+            # Fetch sensors
+            try:
+                sensors_data = await self.get_sensors_v1()
+                await asyncio.sleep(0.2)
+            except Exception as err:
+                _LOGGER.warning("Error fetching sensors data: %s", err)
+
+            # Fetch lights
+            try:
+                lights_data = await self.get_lights_v1()
+                await asyncio.sleep(0.2)
+            except Exception as err:
+                _LOGGER.warning("Error fetching lights data: %s", err)
+
+            # Fetch chimes
+            try:
+                chimes_data = await self.get_chimes()
+                await asyncio.sleep(0.2)
+            except Exception as err:
+                _LOGGER.warning("Error fetching chimes data: %s", err)
+
+            # Fetch viewers
+            try:
+                viewers_data = await self.get_viewers()
+                await asyncio.sleep(0.2)
+            except Exception as err:
+                _LOGGER.warning("Error fetching viewers data: %s", err)
+
+            # Fetch liveviews
+            try:
+                liveviews_data = await self.get_liveviews()
+            except Exception as err:
+                _LOGGER.warning("Error fetching liveviews data: %s", err)
 
             # Combine into bootstrap structure
             bootstrap_data = {
