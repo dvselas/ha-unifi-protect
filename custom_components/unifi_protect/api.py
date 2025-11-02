@@ -541,28 +541,73 @@ class UniFiProtectAPI:
             raise ProtectAPIError(f"Failed to verify connection: {err}") from err
 
     async def get_bootstrap(self) -> dict[str, Any]:
-        """Get bootstrap data containing all devices and settings.
+        """Get bootstrap data containing all devices and settings using Integration API v1.
+
+        This method fetches data from multiple v1 endpoints and combines them into
+        a bootstrap-like structure for compatibility with the rest of the integration.
 
         Returns:
-            Bootstrap data with all cameras, sensors, and configuration (includes injected host field in nvr data)
+            Bootstrap data with all cameras, sensors, lights, chimes, and configuration (includes injected host field in nvr data)
         """
-        data = await self.get("/proxy/protect/api/bootstrap")
-        # Inject host information into NVR data since API doesn't return it
-        if isinstance(data, dict) and "nvr" in data and isinstance(data["nvr"], dict):
-            data["nvr"]["host"] = self.host
-        return data
+        _LOGGER.debug("Fetching bootstrap data from Integration API v1 endpoints")
+
+        # Fetch all data from v1 endpoints in parallel for better performance
+        try:
+            results = await asyncio.gather(
+                self.get_nvr_v1(),
+                self.get_cameras_v1(),
+                self.get_sensors_v1(),
+                self.get_lights_v1(),
+                self.get_chimes(),
+                self.get_viewers(),
+                self.get_liveviews(),
+                return_exceptions=True
+            )
+
+            nvr_data = results[0] if not isinstance(results[0], Exception) else {}
+            cameras_data = results[1] if not isinstance(results[1], Exception) else []
+            sensors_data = results[2] if not isinstance(results[2], Exception) else []
+            lights_data = results[3] if not isinstance(results[3], Exception) else []
+            chimes_data = results[4] if not isinstance(results[4], Exception) else []
+            viewers_data = results[5] if not isinstance(results[5], Exception) else []
+            liveviews_data = results[6] if not isinstance(results[6], Exception) else []
+
+            # Log any errors but don't fail the entire bootstrap
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    endpoint_names = ["nvr", "cameras", "sensors", "lights", "chimes", "viewers", "liveviews"]
+                    _LOGGER.warning("Error fetching %s data: %s", endpoint_names[i], result)
+
+            # Combine into bootstrap structure
+            bootstrap_data = {
+                "nvr": nvr_data,
+                "cameras": cameras_data,
+                "sensors": sensors_data,
+                "lights": lights_data,
+                "chimes": chimes_data,
+                "viewers": viewers_data,
+                "liveviews": liveviews_data,
+            }
+
+            _LOGGER.debug("Successfully fetched bootstrap data: %d cameras, %d sensors, %d lights, %d chimes",
+                         len(cameras_data), len(sensors_data), len(lights_data), len(chimes_data))
+
+            return bootstrap_data
+
+        except Exception as err:
+            _LOGGER.error("Error fetching bootstrap data: %s", err)
+            raise
 
     async def get_cameras(self) -> list[dict[str, Any]]:
-        """Get all cameras.
+        """Get all cameras using Integration API v1.
 
         Returns:
             List of camera data
         """
-        bootstrap = await self.get_bootstrap()
-        return bootstrap.get("cameras", [])
+        return await self.get_cameras_v1()
 
     async def get_camera(self, camera_id: str) -> dict[str, Any]:
-        """Get specific camera data.
+        """Get specific camera data using Integration API v1.
 
         Args:
             camera_id: Camera UUID
@@ -570,12 +615,12 @@ class UniFiProtectAPI:
         Returns:
             Camera data
         """
-        return await self.get(f"/proxy/protect/api/cameras/{camera_id}")
+        return await self.get_camera_v1(camera_id)
 
     async def set_recording_mode(
         self, camera_id: str, mode: str
     ) -> dict[str, Any]:
-        """Set camera recording mode.
+        """Set camera recording mode using Integration API v1.
 
         Args:
             camera_id: Camera UUID
@@ -585,14 +630,14 @@ class UniFiProtectAPI:
             Updated camera data
         """
         return await self.patch(
-            f"/proxy/protect/api/cameras/{camera_id}",
+            f"/proxy/protect/integration/v1/cameras/{camera_id}",
             json={"recordingSettings": {"mode": mode}},
         )
 
     async def set_privacy_mode(
         self, camera_id: str, enabled: bool
     ) -> dict[str, Any]:
-        """Enable/disable privacy mode on camera.
+        """Enable/disable privacy mode on camera using Integration API v1.
 
         Args:
             camera_id: Camera UUID
@@ -602,7 +647,7 @@ class UniFiProtectAPI:
             Updated camera data
         """
         return await self.patch(
-            f"/proxy/protect/api/cameras/{camera_id}",
+            f"/proxy/protect/integration/v1/cameras/{camera_id}",
             json={"privacyModeEnabled": enabled},
         )
 
@@ -980,7 +1025,7 @@ class UniFiProtectAPI:
         )
 
     def get_camera_snapshot_url(self, camera_id: str) -> str:
-        """Get URL for camera snapshot.
+        """Get URL for camera snapshot using Integration API v1.
 
         Args:
             camera_id: Camera UUID
@@ -988,7 +1033,7 @@ class UniFiProtectAPI:
         Returns:
             Snapshot URL
         """
-        return urljoin(self.host, f"/proxy/protect/api/cameras/{camera_id}/snapshot")
+        return urljoin(self.host, f"/proxy/protect/integration/v1/cameras/{camera_id}/snapshot")
 
     async def get_camera_snapshot(self, camera_id: str) -> bytes | None:
         """Get camera snapshot image bytes.
