@@ -208,7 +208,7 @@ class UniFiProtectAPI:
             raise ValueError(f"Unsupported file type: {file_type}. Only 'animations' is currently supported.")
 
         session = await self._get_session()
-        url = f"{self.host}/proxy/protect/integration/v1/files/{file_type}"
+        url = urljoin(self.host, f"/proxy/protect/integration/v1/files/{file_type}")
 
         # Create multipart form data
         form_data = aiohttp.FormData()
@@ -625,7 +625,7 @@ class UniFiProtectAPI:
         """
         params = {"highQuality": "true" if high_quality else "false"}
         session = await self._get_session()
-        url = f"{self.host}/proxy/protect/integration/v1/cameras/{camera_id}/snapshot"
+        url = urljoin(self.host, f"/proxy/protect/integration/v1/cameras/{camera_id}/snapshot")
 
         async with session.get(
             url, headers=self._headers, params=params
@@ -869,7 +869,7 @@ class UniFiProtectAPI:
         Returns:
             Snapshot URL
         """
-        return f"{self.host}/proxy/protect/api/cameras/{camera_id}/snapshot"
+        return urljoin(self.host, f"/proxy/protect/api/cameras/{camera_id}/snapshot")
 
     async def get_camera_snapshot(self, camera_id: str) -> bytes | None:
         """Get camera snapshot image bytes.
@@ -1000,7 +1000,9 @@ class UniFiProtectAPI:
             ws_type: Type of WebSocket ("devices" or "events")
         """
         session = await self._get_session()
-        url = f"{self.host.replace('http', 'ws')}{endpoint}"
+        # Convert HTTP(S) base URL to WS(S) and construct full WebSocket URL
+        ws_host = self.host.replace("https://", "wss://").replace("http://", "ws://")
+        url = urljoin(ws_host, endpoint)
 
         while True:
             try:
