@@ -395,6 +395,8 @@ class ProtectNVR:
             self.name = data["name"]
         if "version" in data:
             self.version = data["version"]
+        if "host" in data:
+            self.host = data["host"]
         if "isRecording" in data:
             self.is_recording = data["isRecording"]
         if "storageStats" in data:

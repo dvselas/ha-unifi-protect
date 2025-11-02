@@ -159,13 +159,17 @@ class UniFiProtectAPI:
         """Get application information.
 
         Returns:
-            Application info with version information
+            Application info with version information (includes injected host field)
 
         Raises:
             AuthenticationError: If authentication fails
             ConnectionError: If connection fails
         """
-        return await self.get("/proxy/protect/integration/v1/meta/info")
+        data = await self.get("/proxy/protect/integration/v1/meta/info")
+        # Inject host information since API doesn't return it
+        if isinstance(data, dict):
+            data["host"] = self.host
+        return data
 
     # NVR methods
 
@@ -173,13 +177,17 @@ class UniFiProtectAPI:
         """Get NVR details using v1 API.
 
         Returns:
-            Detailed NVR data including doorbell settings
+            Detailed NVR data including doorbell settings (includes injected host field)
 
         Raises:
             AuthenticationError: If authentication fails
             ConnectionError: If connection fails
         """
-        return await self.get("/proxy/protect/integration/v1/nvr")
+        data = await self.get("/proxy/protect/integration/v1/nvr")
+        # Inject host information since API doesn't return it
+        if isinstance(data, dict):
+            data["host"] = self.host
+        return data
 
     # Device asset file management methods
 
@@ -429,9 +437,13 @@ class UniFiProtectAPI:
         """Get bootstrap data containing all devices and settings.
 
         Returns:
-            Bootstrap data with all cameras, sensors, and configuration
+            Bootstrap data with all cameras, sensors, and configuration (includes injected host field in nvr data)
         """
-        return await self.get("/proxy/protect/api/bootstrap")
+        data = await self.get("/proxy/protect/api/bootstrap")
+        # Inject host information into NVR data since API doesn't return it
+        if isinstance(data, dict) and "nvr" in data and isinstance(data["nvr"], dict):
+            data["nvr"]["host"] = self.host
+        return data
 
     async def get_cameras(self) -> list[dict[str, Any]]:
         """Get all cameras.
