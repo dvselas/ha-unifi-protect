@@ -55,6 +55,7 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
         Raises:
             UpdateFailed: If update fails
         """
+        _LOGGER.debug("Coordinator update triggered")
         try:
             # Get bootstrap data (contains everything)
             bootstrap = await self.api.get_bootstrap()
@@ -96,7 +97,12 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                 else:
                     # Add new camera
                     self.cameras[camera_id] = ProtectCamera.from_api_data(camera_data)
-                    _LOGGER.info("Discovered new camera: %s", camera_data.get("name"))
+                    _LOGGER.info(
+                        "Discovered new camera: %s (isConnected=%s, state=%s)",
+                        camera_data.get("name"),
+                        camera_data.get("isConnected"),
+                        camera_data.get("state"),
+                    )
 
             # Remove cameras that no longer exist
             removed_cameras = set(self.cameras.keys()) - current_camera_ids
@@ -230,6 +236,16 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning("Error fetching chimes: %s", err)
                 # Don't fail the entire update if chimes fail
 
+            _LOGGER.debug(
+                "Update completed: %d cameras, %d sensors, %d lights, %d viewers, %d liveviews, %d chimes",
+                len(self.cameras),
+                len(self.sensors),
+                len(self.lights),
+                len(self.viewers),
+                len(self.liveviews),
+                len(self.chimes),
+            )
+
             return {
                 "nvr": self.nvr,
                 "cameras": self.cameras,
@@ -241,17 +257,27 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
             }
 
         except ProtectAPIError as err:
+            _LOGGER.error("Update failed with API error: %s", err)
             raise UpdateFailed(f"Error communicating with API: {err}") from err
+        except Exception as err:
+            _LOGGER.exception("Unexpected error during update: %s", err)
+            raise UpdateFailed(f"Unexpected error: {err}") from err
 
     async def async_setup(self) -> None:
         """Set up the coordinator."""
+        _LOGGER.info("Setting up UniFi Protect coordinator")
+
         # Initial data fetch
+        _LOGGER.debug("Performing initial data refresh")
         await self.async_config_entry_first_refresh()
+        _LOGGER.info("Initial data refresh completed successfully")
 
         # Connect WebSocket for real-time updates
+        _LOGGER.debug("Connecting WebSocket for real-time updates")
         self.api.register_device_callback(self._handle_device_update)
         self.api.register_event_callback(self._handle_event_update)
         await self.api.connect_websocket()
+        _LOGGER.info("WebSocket connected successfully")
 
     async def async_shutdown(self) -> None:
         """Shutdown the coordinator."""

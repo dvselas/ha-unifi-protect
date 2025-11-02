@@ -25,11 +25,19 @@ async def async_setup_entry(
     """Set up UniFi Protect cameras."""
     coordinator: ProtectDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
+    _LOGGER.info("Setting up UniFi Protect camera platform with %d cameras", len(coordinator.cameras))
+
     # Add all cameras
-    async_add_entities(
+    entities = [
         ProtectCameraEntity(coordinator, camera_id, camera)
         for camera_id, camera in coordinator.cameras.items()
-    )
+    ]
+
+    if entities:
+        _LOGGER.debug("Adding %d camera entities", len(entities))
+        async_add_entities(entities)
+    else:
+        _LOGGER.warning("No cameras found to add")
 
 
 class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camera):
@@ -66,11 +74,25 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return (
+        camera_exists = self.camera_id in self.coordinator.cameras
+        is_connected = self.camera.is_connected if camera_exists else False
+
+        available = (
             self.coordinator.last_update_success
-            and self.camera_id in self.coordinator.cameras
-            and self.camera.is_connected
+            and camera_exists
+            and is_connected
         )
+
+        if not available:
+            _LOGGER.debug(
+                "Camera %s unavailable: last_update_success=%s, exists=%s, connected=%s",
+                self.camera_id,
+                self.coordinator.last_update_success,
+                camera_exists,
+                is_connected,
+            )
+
+        return available
 
     @property
     def is_recording(self) -> bool:
