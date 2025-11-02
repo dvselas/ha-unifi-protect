@@ -1,11 +1,11 @@
 {
   "domain": "unifi_protect",
   "name": "UniFi Protect v6+",
-  "codeowners": ["@yourusername"],
+  "codeowners": ["@dvselas"],
   "config_flow": true,
-  "documentation": "https://github.com/yourusername/ha-unifi-protect",
-  "issue_tracker": "https://github.com/yourusername/ha-unifi-protect/issues",
+  "documentation": "https://github.com/dvselas/ha-unifi-protect",
+  "issue_tracker": "https://github.com/dvselas/ha-unifi-protect/issues",
   "requirements": ["aiohttp>=3.9.0"],
-  "version": "1.0.0",
+  "version": "0.0.1",
   "iot_class": "local_push"
 }

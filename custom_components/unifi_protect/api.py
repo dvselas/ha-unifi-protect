@@ -933,14 +933,6 @@ class UniFiProtectAPI:
 
     # Light methods
 
-    async def get_lights(self) -> list[dict[str, Any]]:
-        """Get all lights using Integration API v1.
-
-        Returns:
-            List of light data
-        """
-        return await self.get_lights_v1()
-
     async def get_lights_v1(self) -> list[dict[str, Any]]:
         """Get all lights using v1 API.
 
@@ -948,6 +940,14 @@ class UniFiProtectAPI:
             List of light data
         """
         return await self.get("/proxy/protect/integration/v1/lights")
+
+    async def get_lights(self) -> list[dict[str, Any]]:
+        """Get all lights using Integration API v1.
+
+        Returns:
+            List of light data
+        """
+        return await self.get_lights_v1()
 
     async def get_light(self, light_id: str) -> dict[str, Any]:
         """Get specific light data.
