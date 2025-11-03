@@ -914,7 +914,7 @@ class UniFiProtectAPI:
             {"high": "rtsps://192.168.1.1:7441/token?enableSrtp"}
         """
         return await self.post(
-            f"/proxy/protect/v1/cameras/{camera_id}/rtsps-stream",
+            f"/proxy/protect/integration/v1/cameras/{camera_id}/rtsps-stream",
             json={"qualities": qualities},
         )
 
@@ -968,7 +968,7 @@ class UniFiProtectAPI:
         """
         try:
             return await self.get(
-                f"/proxy/protect/v1/cameras/{camera_id}/rtsps-stream"
+                f"/proxy/protect/integration/v1/cameras/{camera_id}/rtsps-stream"
             )
         except ProtectAPIError as err:
             # 404 means no streams created yet, which is normal
@@ -990,7 +990,7 @@ class UniFiProtectAPI:
         # Build query string
         query_params = "&".join(f"qualities={q}" for q in qualities)
         await self.delete(
-            f"/proxy/protect/v1/cameras/{camera_id}/rtsps-stream?{query_params}"
+            f"/proxy/protect/integration/v1/cameras/{camera_id}/rtsps-stream?{query_params}"
         )
 
     async def get_camera_snapshot_v1(
