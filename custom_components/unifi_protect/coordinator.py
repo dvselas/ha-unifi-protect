@@ -45,6 +45,7 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
         self.liveviews: dict[str, ProtectLiveview] = {}
         self.lights: dict[str, ProtectLight] = {}
         self.chimes: dict[str, ProtectChime] = {}
+        self._doorbell_callbacks: dict[str, list] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API.
@@ -295,6 +296,32 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
         # Close API connection
         await self.api.close()
 
+    def register_doorbell_callback(self, camera_id: str, callback) -> None:
+        """Register a callback for doorbell ring events.
+
+        Args:
+            camera_id: Camera ID to monitor
+            callback: Callback function to call when doorbell rings
+        """
+        if camera_id not in self._doorbell_callbacks:
+            self._doorbell_callbacks[camera_id] = []
+        self._doorbell_callbacks[camera_id].append(callback)
+        _LOGGER.debug("Registered doorbell callback for camera %s", camera_id)
+
+    def unregister_doorbell_callback(self, camera_id: str, callback) -> None:
+        """Unregister a doorbell ring callback.
+
+        Args:
+            camera_id: Camera ID
+            callback: Callback function to remove
+        """
+        if camera_id in self._doorbell_callbacks:
+            try:
+                self._doorbell_callbacks[camera_id].remove(callback)
+                _LOGGER.debug("Unregistered doorbell callback for camera %s", camera_id)
+            except ValueError:
+                pass
+
     async def _handle_device_update(self, data: dict[str, Any]) -> None:
         """Handle device update from WebSocket.
 
@@ -531,6 +558,18 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                     }
                 )
                 _LOGGER.debug("Fired doorbell ring event for camera: %s", camera.name)
+
+                # Notify Event entity callbacks
+                if device_id in self._doorbell_callbacks:
+                    callback_data = {
+                        "event_id": event_id,
+                        "timestamp": ring_timestamp,
+                    }
+                    for callback in self._doorbell_callbacks[device_id]:
+                        try:
+                            callback(callback_data)
+                        except Exception as err:
+                            _LOGGER.error("Error in doorbell callback: %s", err)
 
         elif event_type in ["motion", "smartDetectZone", "smartDetectLine"]:
             # Motion or smart detection event
