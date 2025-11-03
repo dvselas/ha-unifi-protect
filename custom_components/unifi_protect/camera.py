@@ -143,11 +143,10 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
         return await self.coordinator.api.get_camera_snapshot(self.camera_id)
 
     async def stream_source(self) -> str | None:
-        """Return the RTSPS stream source.
+        """Return the RTSP stream source.
 
-        For Integration API v1, we try to create RTSPS streams first.
-        If the endpoint is not available (older Protect versions), we fall
-        back to using RTSP URLs from the bootstrap channels data.
+        Uses RTSP URLs from the bootstrap channels data. These are always
+        available and don't require special API endpoints.
 
         Stream URLs are cached for 30 minutes.
 
@@ -158,71 +157,21 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
             _LOGGER.debug("Camera %s not available for streaming", self.camera_id)
             return None
 
-        # Check cache first to avoid repeated API calls
+        # Check cache first to avoid repeated lookups
         cached_url = self.coordinator.api.get_cached_stream_url(self.camera_id)
         if cached_url:
             _LOGGER.debug("Using cached stream URL for camera %s", self.camera_id)
             return cached_url
 
-        try:
-            # Try Integration API v1 RTSPS stream creation (preferred method)
-            # Package channel is optimized for low latency and quick preview
-            _LOGGER.debug("Creating RTSPS streams for camera %s", self.camera_id)
-            created_streams = await self.coordinator.api.create_camera_rtsps_streams(
-                self.camera_id,
-                ["package", "high", "medium"]
-            )
-
-            # Prefer package stream for fastest loading, fallback to high
-            stream_url = None
-            if created_streams:
-                if "package" in created_streams and created_streams["package"]:
-                    stream_url = created_streams["package"]
-                    _LOGGER.debug("Using package (fast) RTSPS stream for camera %s", self.camera_id)
-                elif "high" in created_streams and created_streams["high"]:
-                    stream_url = created_streams["high"]
-                    _LOGGER.debug("Using high quality RTSPS stream for camera %s", self.camera_id)
-                elif "medium" in created_streams and created_streams["medium"]:
-                    stream_url = created_streams["medium"]
-                    _LOGGER.debug("Using medium quality RTSPS stream for camera %s", self.camera_id)
-
-            if stream_url:
-                # Cache the URL
-                self.coordinator.api.set_cached_stream_url(self.camera_id, stream_url)
-                return stream_url
-
-            _LOGGER.warning("No RTSPS stream URL returned for camera %s", self.camera_id)
-            return None
-
-        except ConnectionError as err:
-            # Rate limit error - return None and let HA retry later
-            if "rate limit" in str(err).lower():
-                _LOGGER.warning("Rate limit hit for camera %s, will retry later", self.camera_id)
-                return None
-            _LOGGER.error("Connection error getting stream for camera %s: %s", self.camera_id, err)
-            return None
-        except Exception as err:
-            # Check if this is a 404 "endpoint not found" error (API version mismatch)
-            error_str = str(err).lower()
-            if "404" in error_str or "not found" in error_str or "endpoint not found" in error_str:
-                _LOGGER.info(
-                    "Integration API v1 RTSPS endpoint not available for camera %s, "
-                    "falling back to bootstrap RTSP URL (this is normal for older Protect versions)",
-                    self.camera_id
-                )
-
-                # Fallback to bootstrap RTSP URL from channels
-                rtsp_url = self.camera.rtsp_url
-                if rtsp_url:
-                    _LOGGER.info("Using bootstrap RTSP URL for camera %s: %s", self.camera.name, rtsp_url)
-                    # Cache the URL
-                    self.coordinator.api.set_cached_stream_url(self.camera_id, rtsp_url)
-                    return rtsp_url
-                else:
-                    _LOGGER.error("No RTSP URL available in bootstrap data for camera %s", self.camera_id)
-                    return None
-
-            _LOGGER.error("Error getting stream source for camera %s: %s", self.camera_id, err)
+        # Get RTSP URL from bootstrap channels data
+        rtsp_url = self.camera.rtsp_url
+        if rtsp_url:
+            _LOGGER.debug("Using bootstrap RTSP URL for camera %s: %s", self.camera.name, rtsp_url)
+            # Cache the URL
+            self.coordinator.api.set_cached_stream_url(self.camera_id, rtsp_url)
+            return rtsp_url
+        else:
+            _LOGGER.error("No RTSP URL available in bootstrap data for camera %s", self.camera_id)
             return None
 
     @property

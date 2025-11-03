@@ -701,8 +701,9 @@ class UniFiProtectAPI:
             except Exception as err:
                 _LOGGER.warning("Error fetching liveviews data: %s", err)
 
-            # Fetch storage stats from bootstrap endpoint
+            # Try to fetch storage stats from bootstrap endpoint
             # Integration API v1 doesn't include storage in NVR endpoint
+            # This is optional and failure is not critical
             try:
                 full_bootstrap = await self.get_nvr_bootstrap()
                 if full_bootstrap and "nvr" in full_bootstrap:
@@ -713,7 +714,8 @@ class UniFiProtectAPI:
                         _LOGGER.debug("Added storage stats to NVR data")
                 await asyncio.sleep(0.2)
             except Exception as err:
-                _LOGGER.warning("Error fetching storage stats: %s", err)
+                # Storage stats are optional - just debug log if not available
+                _LOGGER.debug("Storage stats not available (this is normal for some Protect versions): %s", err)
 
             # Combine into bootstrap structure
             bootstrap_data = {
