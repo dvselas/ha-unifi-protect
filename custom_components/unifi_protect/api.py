@@ -300,8 +300,9 @@ class UniFiProtectAPI:
     async def get_nvr_bootstrap(self) -> dict[str, Any]:
         """Get full NVR data from bootstrap endpoint (includes storage stats).
 
-        This endpoint provides complete NVR information including storage statistics
-        which are not available in the Integration API v1 endpoints.
+        Note: This endpoint may not be available in all UniFi Protect versions.
+        The Integration API v1 doesn't provide a direct bootstrap endpoint,
+        so this attempts to use the legacy API endpoint which may fail.
 
         Returns:
             Full bootstrap data with NVR including storageStats
@@ -309,7 +310,10 @@ class UniFiProtectAPI:
         Raises:
             AuthenticationError: If authentication fails
             ConnectionError: If connection fails
+            ProtectAPIError: If endpoint not available
         """
+        # Try legacy bootstrap endpoint (may not be available)
+        # This is only used for optional storage stats
         return await self.get("/proxy/protect/api/bootstrap")
 
     # Device asset file management methods
@@ -665,15 +669,15 @@ class UniFiProtectAPI:
                 cameras_data = await self.get_cameras_v1()
 
                 # Integration API v1 cameras endpoint doesn't include channels (RTSP URLs)
-                # Fetch each camera individually to get channels data
+                # Fetch each camera individually to get full details including channels
                 _LOGGER.debug("Enriching camera data with channels for RTSP URLs")
                 for i, camera in enumerate(cameras_data):
                     try:
                         camera_id = camera.get("id")
                         if camera_id:
-                            # Get full camera details including channels
-                            full_camera = await self.get(f"/proxy/protect/api/cameras/{camera_id}")
-                            # Merge channels into the v1 camera data
+                            # Get full camera details using Integration API v1
+                            full_camera = await self.get_camera_v1(camera_id)
+                            # Merge channels into the camera data if available
                             if "channels" in full_camera:
                                 cameras_data[i]["channels"] = full_camera["channels"]
                                 _LOGGER.debug("Added channels data for camera %s", camera.get("name"))
