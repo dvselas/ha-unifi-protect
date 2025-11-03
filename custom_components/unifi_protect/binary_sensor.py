@@ -246,10 +246,10 @@ class ProtectBinarySensorEntity(
         if self.entity_description.key == "motion":
             return self.camera.is_motion_detected_recently
         elif self.entity_description.key == "doorbell":
-            # Doorbell is "on" if it was recently pressed (within last 30 seconds)
+            # Doorbell is "on" if it was recently pressed (within last 5 seconds)
             if self.camera.last_ring:
                 from time import time
-                return (time() * 1000 - self.camera.last_ring) < 30000
+                return (time() * 1000 - self.camera.last_ring) < 5000
             return False
         elif self.entity_description.key == "online":
             return self.camera.is_connected
