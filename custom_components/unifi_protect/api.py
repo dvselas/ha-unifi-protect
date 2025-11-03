@@ -663,6 +663,27 @@ class UniFiProtectAPI:
             # Fetch cameras
             try:
                 cameras_data = await self.get_cameras_v1()
+
+                # Integration API v1 cameras endpoint doesn't include channels (RTSP URLs)
+                # Fetch each camera individually to get channels data
+                _LOGGER.debug("Enriching camera data with channels for RTSP URLs")
+                for i, camera in enumerate(cameras_data):
+                    try:
+                        camera_id = camera.get("id")
+                        if camera_id:
+                            # Get full camera details including channels
+                            full_camera = await self.get(f"/proxy/protect/api/cameras/{camera_id}")
+                            # Merge channels into the v1 camera data
+                            if "channels" in full_camera:
+                                cameras_data[i]["channels"] = full_camera["channels"]
+                                _LOGGER.debug("Added channels data for camera %s", camera.get("name"))
+                            # Small delay to avoid rate limiting
+                            if i < len(cameras_data) - 1:
+                                await asyncio.sleep(0.1)
+                    except Exception as camera_err:
+                        _LOGGER.debug("Could not fetch channels for camera %s: %s",
+                                    camera.get("name"), camera_err)
+
                 await asyncio.sleep(0.2)
             except Exception as err:
                 _LOGGER.warning("Error fetching cameras data: %s", err)
