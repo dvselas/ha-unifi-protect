@@ -462,6 +462,16 @@ class UniFiProtectAPI:
             f"/proxy/protect/integration/v1/lights/{light_id}/reboot"
         )
 
+    async def reboot_viewer(self, viewer_id: str) -> None:
+        """Reboot viewer device.
+
+        Args:
+            viewer_id: Viewer UUID
+        """
+        await self.post(
+            f"/proxy/protect/integration/v1/viewers/{viewer_id}/reboot"
+        )
+
     # Viewer methods
 
     async def get_viewers(self) -> list[dict[str, Any]]:

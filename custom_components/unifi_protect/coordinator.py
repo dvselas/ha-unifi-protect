@@ -507,8 +507,27 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
             # Doorbell ring event
             if device_id in self.cameras:
                 camera = self.cameras[device_id]
-                camera.last_ring = event_data.get("start")
+                ring_timestamp = event_data.get("start")
+                camera.last_ring = ring_timestamp
                 _LOGGER.info("Doorbell ring detected: %s", camera.name)
+
+                # Update paired chimes
+                for chime in self.chimes.values():
+                    if device_id in chime.camera_ids:
+                        chime.last_ring = ring_timestamp
+                        _LOGGER.debug("Updated last_ring for paired chime: %s", chime.name)
+
+                # Fire Home Assistant event
+                self.hass.bus.async_fire(
+                    "unifiprotect_doorbell_ring",
+                    {
+                        "event_id": event_id,
+                        "camera_id": device_id,
+                        "camera_name": camera.name,
+                        "timestamp": ring_timestamp,
+                    }
+                )
+                _LOGGER.debug("Fired doorbell ring event for camera: %s", camera.name)
 
         elif event_type in ["motion", "smartDetectZone", "smartDetectLine"]:
             # Motion or smart detection event
@@ -544,6 +563,46 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                 light.is_pir_motion_detected = event_data.get("end") is None
                 light.last_motion = event_data.get("start")
                 _LOGGER.debug("Light motion event: %s", light.name)
+
+        elif event_type == "nfcCardScanned":
+            # NFC card scan event
+            if device_id in self.cameras:
+                camera = self.cameras[device_id]
+                nfc_data = event_data.get("metadata", {})
+
+                # Fire Home Assistant event
+                self.hass.bus.async_fire(
+                    "unifiprotect_nfc_card_scanned",
+                    {
+                        "event_id": event_id,
+                        "camera_id": device_id,
+                        "camera_name": camera.name,
+                        "timestamp": event_data.get("start"),
+                        "card_id": nfc_data.get("cardId"),
+                        "user_id": nfc_data.get("userId"),
+                    }
+                )
+                _LOGGER.info("NFC card scanned on camera %s: card_id=%s", camera.name, nfc_data.get("cardId"))
+
+        elif event_type == "fingerprintIdentified":
+            # Fingerprint identification event
+            if device_id in self.cameras:
+                camera = self.cameras[device_id]
+                fingerprint_data = event_data.get("metadata", {})
+
+                # Fire Home Assistant event
+                self.hass.bus.async_fire(
+                    "unifiprotect_fingerprint_identified",
+                    {
+                        "event_id": event_id,
+                        "camera_id": device_id,
+                        "camera_name": camera.name,
+                        "timestamp": event_data.get("start"),
+                        "fingerprint_id": fingerprint_data.get("fingerprintId"),
+                        "user_id": fingerprint_data.get("userId"),
+                    }
+                )
+                _LOGGER.info("Fingerprint identified on camera %s: fingerprint_id=%s", camera.name, fingerprint_data.get("fingerprintId"))
 
         # Notify listeners
         self.async_set_updated_data(
