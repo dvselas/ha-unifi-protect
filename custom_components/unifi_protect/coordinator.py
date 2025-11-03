@@ -322,25 +322,42 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                     _LOGGER.debug("Skipping stream creation for disconnected camera %s", camera.name)
                     return
 
-                # Create streams with package quality for fastest loading
-                streams = await self.api.create_camera_rtsps_streams(
-                    camera_id,
-                    ["package", "high", "medium"]
-                )
+                # Try to create streams with Integration API v1
+                try:
+                    streams = await self.api.create_camera_rtsps_streams(
+                        camera_id,
+                        ["package", "high", "medium"]
+                    )
 
-                # Cache the stream URL
-                if streams:
-                    stream_url = None
-                    if "package" in streams and streams["package"]:
-                        stream_url = streams["package"]
-                    elif "high" in streams and streams["high"]:
-                        stream_url = streams["high"]
-                    elif "medium" in streams and streams["medium"]:
-                        stream_url = streams["medium"]
+                    # Cache the stream URL
+                    if streams:
+                        stream_url = None
+                        if "package" in streams and streams["package"]:
+                            stream_url = streams["package"]
+                        elif "high" in streams and streams["high"]:
+                            stream_url = streams["high"]
+                        elif "medium" in streams and streams["medium"]:
+                            stream_url = streams["medium"]
 
-                    if stream_url:
-                        self.api.set_cached_stream_url(camera_id, stream_url)
-                        _LOGGER.debug("Pre-created stream for camera %s", camera.name)
+                        if stream_url:
+                            self.api.set_cached_stream_url(camera_id, stream_url)
+                            _LOGGER.debug("Pre-created stream for camera %s", camera.name)
+
+                except Exception as api_err:
+                    # Check if endpoint not found (older Protect versions)
+                    error_str = str(api_err).lower()
+                    if "404" in error_str or "not found" in error_str or "endpoint not found" in error_str:
+                        _LOGGER.debug(
+                            "Integration API v1 RTSPS endpoint not available, using bootstrap RTSP URL for %s",
+                            camera.name
+                        )
+                        # Use bootstrap RTSP URL instead
+                        rtsp_url = camera.rtsp_url
+                        if rtsp_url:
+                            self.api.set_cached_stream_url(camera_id, rtsp_url)
+                            _LOGGER.debug("Pre-cached bootstrap RTSP URL for camera %s", camera.name)
+                    else:
+                        raise  # Re-raise if not a 404
 
             except Exception as err:
                 # Log but don't fail - streams will be created on-demand if this fails

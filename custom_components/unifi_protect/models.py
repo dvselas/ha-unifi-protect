@@ -318,6 +318,35 @@ class ProtectCamera:
         return False
 
     @property
+    def rtsp_url(self) -> str | None:
+        """Get RTSP stream URL from bootstrap channels data.
+
+        This is a fallback for systems that don't support Integration API v1
+        RTSPS stream creation endpoints.
+
+        Returns:
+            RTSP URL for high quality stream, or None if not available
+        """
+        if not self.channels:
+            return None
+
+        # Look for high quality channel (channel 0)
+        for channel in self.channels:
+            if channel.get("id") == 0:  # High quality channel
+                rtsp_alias = channel.get("rtspAlias")
+                if rtsp_alias:
+                    # Return the RTSP URL - will be formatted as rtsps://host:7441/rtspAlias
+                    return f"rtsps://{self.host}:7441/{rtsp_alias}"
+
+        # Fallback: use first channel if high quality not found
+        if self.channels and len(self.channels) > 0:
+            rtsp_alias = self.channels[0].get("rtspAlias")
+            if rtsp_alias:
+                return f"rtsps://{self.host}:7441/{rtsp_alias}"
+
+        return None
+
+    @property
     def speaker_volume(self) -> int:
         """Return speaker volume (0-100).
 
