@@ -300,16 +300,18 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
         await self.api.close()
 
     async def _create_camera_streams(self) -> None:
-        """Pre-cache RTSP stream URLs for all cameras.
+        """Pre-cache RTSPS stream URLs for all cameras.
 
-        Extracts and caches RTSP URLs from bootstrap data so they're
-        ready when users open camera feeds.
+        Fetches existing RTSPS streams from the API and caches them
+        so they're ready when users open camera feeds.
         """
+        import asyncio
+
         if not self.cameras:
             _LOGGER.debug("No cameras found, skipping stream caching")
             return
 
-        _LOGGER.info("Pre-caching RTSP stream URLs for %d cameras", len(self.cameras))
+        _LOGGER.info("Pre-caching RTSPS stream URLs for %d cameras", len(self.cameras))
 
         cached_count = 0
         for camera_id, camera in self.cameras.items():
@@ -318,16 +320,38 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug("Skipping disconnected camera %s", camera.name)
                 continue
 
-            # Get RTSP URL from bootstrap channels data
-            rtsp_url = camera.rtsp_url
-            if rtsp_url:
-                self.api.set_cached_stream_url(camera_id, rtsp_url)
-                cached_count += 1
-                _LOGGER.debug("Pre-cached RTSP URL for camera %s", camera.name)
-            else:
-                _LOGGER.warning("No RTSP URL available for camera %s", camera.name)
+            try:
+                # Get existing RTSPS streams from API
+                streams = await self.api.get_camera_rtsps_streams(camera_id)
 
-        _LOGGER.info("Pre-cached RTSP URLs for %d cameras", cached_count)
+                if streams:
+                    # Prefer package stream, fallback to high/medium/low
+                    stream_url = None
+                    if streams.get("package"):
+                        stream_url = streams["package"]
+                    elif streams.get("high"):
+                        stream_url = streams["high"]
+                    elif streams.get("medium"):
+                        stream_url = streams["medium"]
+                    elif streams.get("low"):
+                        stream_url = streams["low"]
+
+                    if stream_url:
+                        self.api.set_cached_stream_url(camera_id, stream_url)
+                        cached_count += 1
+                        _LOGGER.debug("Pre-cached RTSPS URL for camera %s", camera.name)
+                    else:
+                        _LOGGER.debug("No RTSPS streams available for camera %s", camera.name)
+                else:
+                    _LOGGER.debug("No RTSPS streams returned for camera %s", camera.name)
+
+                # Small delay to avoid overwhelming API
+                await asyncio.sleep(0.1)
+
+            except Exception as err:
+                _LOGGER.debug("Could not fetch RTSPS streams for camera %s: %s", camera.name, err)
+
+        _LOGGER.info("Pre-cached RTSPS URLs for %d cameras", cached_count)
 
     def register_doorbell_callback(self, camera_id: str, callback) -> None:
         """Register a callback for doorbell ring events.

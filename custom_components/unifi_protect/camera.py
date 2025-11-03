@@ -143,10 +143,11 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
         return await self.coordinator.api.get_camera_snapshot(self.camera_id)
 
     async def stream_source(self) -> str | None:
-        """Return the RTSP stream source.
+        """Return the RTSPS stream source.
 
-        Uses RTSP URLs from the bootstrap channels data. These are always
-        available and don't require special API endpoints.
+        Fetches existing RTSPS stream URLs from the API. These streams
+        are automatically created by UniFi Protect and are always available
+        for connected cameras.
 
         Stream URLs are cached for 30 minutes.
 
@@ -157,21 +158,57 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
             _LOGGER.debug("Camera %s not available for streaming", self.camera_id)
             return None
 
-        # Check cache first to avoid repeated lookups
+        # Check cache first to avoid repeated API calls
         cached_url = self.coordinator.api.get_cached_stream_url(self.camera_id)
         if cached_url:
             _LOGGER.debug("Using cached stream URL for camera %s", self.camera_id)
             return cached_url
 
-        # Get RTSP URL from bootstrap channels data
-        rtsp_url = self.camera.rtsp_url
-        if rtsp_url:
-            _LOGGER.debug("Using bootstrap RTSP URL for camera %s: %s", self.camera.name, rtsp_url)
-            # Cache the URL
-            self.coordinator.api.set_cached_stream_url(self.camera_id, rtsp_url)
-            return rtsp_url
-        else:
-            _LOGGER.error("No RTSP URL available in bootstrap data for camera %s", self.camera_id)
+        try:
+            # Get existing RTSPS streams from API
+            _LOGGER.debug("Fetching RTSPS streams for camera %s", self.camera_id)
+            streams = await self.coordinator.api.get_camera_rtsps_streams(self.camera_id)
+
+            if streams:
+                # Prefer package stream for fastest loading, fallback to high/medium/low
+                stream_url = None
+                if streams.get("package"):
+                    stream_url = streams["package"]
+                    _LOGGER.debug("Using package (fast) RTSPS stream for camera %s", self.camera_id)
+                elif streams.get("high"):
+                    stream_url = streams["high"]
+                    _LOGGER.debug("Using high quality RTSPS stream for camera %s", self.camera_id)
+                elif streams.get("medium"):
+                    stream_url = streams["medium"]
+                    _LOGGER.debug("Using medium quality RTSPS stream for camera %s", self.camera_id)
+                elif streams.get("low"):
+                    stream_url = streams["low"]
+                    _LOGGER.debug("Using low quality RTSPS stream for camera %s", self.camera_id)
+
+                if stream_url:
+                    # Cache the URL
+                    self.coordinator.api.set_cached_stream_url(self.camera_id, stream_url)
+                    return stream_url
+
+            # If no RTSPS streams available, try bootstrap RTSP URL as fallback
+            _LOGGER.debug("No RTSPS streams available, trying bootstrap RTSP URL")
+            rtsp_url = self.camera.rtsp_url
+            if rtsp_url:
+                _LOGGER.info("Using bootstrap RTSP URL for camera %s: %s", self.camera.name, rtsp_url)
+                self.coordinator.api.set_cached_stream_url(self.camera_id, rtsp_url)
+                return rtsp_url
+
+            _LOGGER.error("No stream URL available for camera %s", self.camera_id)
+            return None
+
+        except Exception as err:
+            _LOGGER.warning("Error fetching RTSPS streams for camera %s: %s", self.camera_id, err)
+            # Try bootstrap RTSP URL as fallback
+            rtsp_url = self.camera.rtsp_url
+            if rtsp_url:
+                _LOGGER.info("Using bootstrap RTSP URL as fallback for camera %s", self.camera.name)
+                self.coordinator.api.set_cached_stream_url(self.camera_id, rtsp_url)
+                return rtsp_url
             return None
 
     @property
