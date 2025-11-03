@@ -514,9 +514,28 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
             # Motion or smart detection event
             if device_id in self.cameras:
                 camera = self.cameras[device_id]
-                camera.is_motion_detected = event_data.get("end") is None
+                is_ongoing = event_data.get("end") is None
+                camera.is_motion_detected = is_ongoing
                 camera.last_motion = event_data.get("start")
-                _LOGGER.debug("Motion event for camera: %s", camera.name)
+
+                # Handle smart detections
+                if event_type in ["smartDetectZone", "smartDetectLine"]:
+                    smart_detect_types = event_data.get("smartDetectTypes", [])
+                    if smart_detect_types and is_ongoing:
+                        # Update runtime detected objects
+                        camera._runtime_detected_objects = smart_detect_types
+                        camera._last_smart_detect_event = event_data.get("start")
+                        _LOGGER.debug(
+                            "Smart detection event for camera %s: %s",
+                            camera.name,
+                            smart_detect_types,
+                        )
+                    elif not is_ongoing:
+                        # Clear detections when event ends
+                        camera._runtime_detected_objects = []
+                        _LOGGER.debug("Smart detection ended for camera: %s", camera.name)
+                else:
+                    _LOGGER.debug("Motion event for camera: %s", camera.name)
 
         elif event_type == "lightMotion":
             # Light motion event

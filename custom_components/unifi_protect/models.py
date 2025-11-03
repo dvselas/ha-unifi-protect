@@ -47,6 +47,9 @@ class ProtectCamera:
     zoom_position: int | None  # Zoom position (0-100)
     # Stats
     stats: dict[str, Any]  # Network and storage stats
+    # Runtime detection states (updated by WebSocket events)
+    _runtime_detected_objects: list[str] = None  # Currently detected smart object types
+    _last_smart_detect_event: int | None = None  # Timestamp of last smart detection
     raw_data: dict[str, Any]
 
     @classmethod
@@ -105,6 +108,8 @@ class ProtectCamera:
             wdr_value=data.get("wdrValue"),
             zoom_position=data.get("zoomPosition"),
             stats=data.get("stats", {}),
+            _runtime_detected_objects=[],
+            _last_smart_detect_event=None,
             raw_data=data,
         )
 
@@ -205,9 +210,40 @@ class ProtectCamera:
         return len(smart_types) > 0
 
     @property
+    def is_motion_detected_recently(self) -> bool:
+        """Return if motion was detected recently (within last 30 seconds).
+
+        This provides a time-based check in addition to the WebSocket-based is_motion_detected field.
+        """
+        import time
+
+        if self.is_motion_detected:
+            return True
+
+        # Fallback: check if last_motion was within 30 seconds
+        if self.last_motion:
+            return (time.time() * 1000 - self.last_motion) < 30000
+
+        return False
+
+    @property
     def detected_object_types(self) -> list[str]:
-        """Return list of currently detected smart object types."""
-        return self.smart_detect_settings.get("objectTypes", [])
+        """Return list of currently detected smart object types.
+
+        Returns objects detected in the last 10 seconds via WebSocket events.
+        """
+        import time
+
+        # Check if we have runtime detections and if they're recent (within 10 seconds)
+        if (
+            self._runtime_detected_objects
+            and self._last_smart_detect_event
+            and (time.time() * 1000 - self._last_smart_detect_event) < 10000
+        ):
+            return self._runtime_detected_objects
+
+        # No recent detections
+        return []
 
     @property
     def detected_audio_types(self) -> list[str]:
@@ -820,6 +856,23 @@ class ProtectLight:
     def is_connected(self) -> bool:
         """Return if light is connected."""
         return self.state == "CONNECTED"
+
+    @property
+    def is_pir_motion_detected_recently(self) -> bool:
+        """Return if PIR motion was detected recently (within last 30 seconds).
+
+        This provides a time-based check in addition to the WebSocket-based is_pir_motion_detected field.
+        """
+        import time
+
+        if self.is_pir_motion_detected:
+            return True
+
+        # Fallback: check if last_motion was within 30 seconds
+        if self.last_motion:
+            return (time.time() * 1000 - self.last_motion) < 30000
+
+        return False
 
     @property
     def unique_id(self) -> str:

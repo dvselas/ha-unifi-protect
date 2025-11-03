@@ -244,7 +244,7 @@ class ProtectBinarySensorEntity(
     def is_on(self) -> bool:
         """Return true if the binary sensor is on."""
         if self.entity_description.key == "motion":
-            return self.camera.is_motion_detected
+            return self.camera.is_motion_detected_recently
         elif self.entity_description.key == "doorbell":
             # Doorbell is "on" if it was recently pressed (within last 30 seconds)
             if self.camera.last_ring:
@@ -646,6 +646,6 @@ class ProtectLightBinarySensorEntity(
         if self.entity_description.key == "dark":
             return self.light.is_dark
         elif self.entity_description.key == "motion":
-            return self.light.is_pir_motion_detected
+            return self.light.is_pir_motion_detected_recently
 
         return False
