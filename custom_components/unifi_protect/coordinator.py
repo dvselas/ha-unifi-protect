@@ -98,11 +98,14 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                     # Add new camera
                     self.cameras[camera_id] = ProtectCamera.from_api_data(camera_data)
                     _LOGGER.info(
-                        "Discovered new camera: %s (isConnected=%s, state=%s)",
+                        "Discovered new camera: %s (isConnected=%s, state=%s, connectionState=%s)",
                         camera_data.get("name"),
                         camera_data.get("isConnected"),
                         camera_data.get("state"),
+                        camera_data.get("connectionState"),
                     )
+                    # Log all top-level keys to understand API response structure
+                    _LOGGER.debug("Camera API fields: %s", list(camera_data.keys()))
 
             # Remove cameras that no longer exist
             removed_cameras = set(self.cameras.keys()) - current_camera_ids

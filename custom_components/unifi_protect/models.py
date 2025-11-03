@@ -51,6 +51,16 @@ class ProtectCamera:
         Returns:
             ProtectCamera instance
         """
+        # Determine connection status
+        # Integration API v1 uses 'state' field: "CONNECTED", "CONNECTING", "DISCONNECTED"
+        # Older API used 'isConnected' boolean
+        state = data.get("state", "DISCONNECTED")
+        if "isConnected" in data:
+            is_connected = data["isConnected"]
+        else:
+            # Derive from state field - consider CONNECTED or CONNECTING as connected
+            is_connected = state in ("CONNECTED", "CONNECTING")
+
         return cls(
             id=data["id"],
             name=data.get("name", "Unknown Camera"),
@@ -58,8 +68,8 @@ class ProtectCamera:
             type=data.get("type", "camera"),
             mac=data.get("mac", ""),
             host=data.get("host", ""),
-            state=data.get("state", "DISCONNECTED"),
-            is_connected=data.get("isConnected", False),
+            state=state,
+            is_connected=is_connected,
             is_recording=data.get("isRecording", False),
             is_motion_detected=data.get("isMotionDetected", False),
             privacy_mode=data.get("privacyModeEnabled", False),
@@ -93,6 +103,9 @@ class ProtectCamera:
             self.name = data["name"]
         if "state" in data:
             self.state = data["state"]
+            # If isConnected not explicitly provided, derive from state
+            if "isConnected" not in data:
+                self.is_connected = self.state in ("CONNECTED", "CONNECTING")
         if "isConnected" in data:
             self.is_connected = data["isConnected"]
         if "isRecording" in data:
@@ -202,14 +215,21 @@ class ProtectSensor:
         """
         battery_status = data.get("batteryStatus", {})
 
+        # Determine connection status (same logic as camera)
+        state = data.get("state", "DISCONNECTED")
+        if "isConnected" in data:
+            is_connected = data["isConnected"]
+        else:
+            is_connected = state in ("CONNECTED", "CONNECTING")
+
         return cls(
             id=data["id"],
             name=data.get("name", "Unknown Sensor"),
             model=data.get("model", "Unknown"),
             type=data.get("type", "sensor"),
             mac=data.get("mac", ""),
-            state=data.get("state", "DISCONNECTED"),
-            is_connected=data.get("isConnected", False),
+            state=state,
+            is_connected=is_connected,
             battery_level=battery_status.get("percentage"),
             firmware_version=data.get("firmwareVersion", ""),
             # V1 API fields
@@ -243,6 +263,9 @@ class ProtectSensor:
             self.name = data["name"]
         if "state" in data:
             self.state = data["state"]
+            # If isConnected not explicitly provided, derive from state
+            if "isConnected" not in data:
+                self.is_connected = self.state in ("CONNECTED", "CONNECTING")
         if "isConnected" in data:
             self.is_connected = data["isConnected"]
         if "batteryStatus" in data:

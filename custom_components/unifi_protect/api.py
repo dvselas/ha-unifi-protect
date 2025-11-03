@@ -1110,17 +1110,25 @@ class UniFiProtectAPI:
         """
         try:
             url = self.get_camera_snapshot_url(camera_id)
+            _LOGGER.debug("Fetching snapshot from %s", url)
             session = await self._get_session()
 
             async with session.get(url, headers=self._headers, ssl=self._ssl_context) as response:
                 if response.status == 200:
-                    return await response.read()
+                    image_data = await response.read()
+                    _LOGGER.debug("Successfully fetched snapshot: %d bytes", len(image_data))
+                    return image_data
 
-                _LOGGER.error("Error getting camera snapshot: HTTP %s", response.status)
+                _LOGGER.warning(
+                    "Camera snapshot failed for %s: HTTP %s - %s",
+                    camera_id,
+                    response.status,
+                    await response.text() if response.status != 404 else "Not Found"
+                )
                 return None
 
         except Exception as err:
-            _LOGGER.error("Error getting camera snapshot: %s", err)
+            _LOGGER.error("Exception getting camera snapshot for %s: %s", camera_id, err)
             return None
 
     def get_camera_stream_url(self, camera_id: str, channel: int = 0) -> str:
