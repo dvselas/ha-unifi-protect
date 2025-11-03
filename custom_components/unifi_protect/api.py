@@ -58,6 +58,10 @@ class UniFiProtectAPI:
         # Cache for RTSPS stream URLs (camera_id -> {"url": str, "expires": float})
         self._stream_cache: dict[str, dict[str, Any]] = {}
 
+        # Cache for camera snapshots (camera_id -> {"data": bytes, "expires": float})
+        # Snapshots cached for 2 seconds to avoid hammering the API
+        self._snapshot_cache: dict[str, dict[str, Any]] = {}
+
         # Ensure host has protocol
         if not self.host.startswith(("http://", "https://")):
             self.host = f"https://{self.host}"
@@ -1241,37 +1245,116 @@ class UniFiProtectAPI:
         """
         return urljoin(self.host, f"/proxy/protect/integration/v1/cameras/{camera_id}/snapshot")
 
-    async def get_camera_snapshot(self, camera_id: str) -> bytes | None:
-        """Get camera snapshot image bytes.
+    async def get_camera_snapshot(self, camera_id: str, force_refresh: bool = False) -> bytes | None:
+        """Get camera snapshot image bytes with caching and retry logic.
 
         Args:
             camera_id: Camera UUID
+            force_refresh: Force refresh cache (default: False)
 
         Returns:
             Image bytes or None if unavailable
         """
-        try:
-            url = self.get_camera_snapshot_url(camera_id)
-            _LOGGER.debug("Fetching snapshot from %s", url)
-            session = await self._get_session()
+        import time
 
-            async with session.get(url, headers=self._headers, ssl=self._ssl_context) as response:
-                if response.status == 200:
-                    image_data = await response.read()
-                    _LOGGER.debug("Successfully fetched snapshot: %d bytes", len(image_data))
-                    return image_data
+        # Check cache first (unless force refresh)
+        if not force_refresh and camera_id in self._snapshot_cache:
+            cache_entry = self._snapshot_cache[camera_id]
+            # Cache for 2 seconds to avoid hammering the API
+            if time.time() < cache_entry["expires"]:
+                _LOGGER.debug("Using cached snapshot for camera %s", camera_id)
+                return cache_entry["data"]
 
+        url = self.get_camera_snapshot_url(camera_id)
+        session = await self._get_session()
+
+        # Retry logic: try up to 3 times with exponential backoff
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # 10 second timeout for snapshot fetch
+                timeout = aiohttp.ClientTimeout(total=10)
+
+                _LOGGER.debug("Fetching snapshot from %s (attempt %d/%d)", url, attempt + 1, max_retries)
+
+                async with session.get(
+                    url,
+                    headers=self._headers,
+                    ssl=self._ssl_context,
+                    timeout=timeout
+                ) as response:
+                    if response.status == 200:
+                        image_data = await response.read()
+
+                        # Validate we got actual image data
+                        if not image_data or len(image_data) < 100:
+                            _LOGGER.warning(
+                                "Snapshot for %s returned suspiciously small data: %d bytes",
+                                camera_id,
+                                len(image_data) if image_data else 0
+                            )
+                            # Retry on next iteration
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(0.5 * (2 ** attempt))  # Exponential backoff
+                                continue
+                            return None
+
+                        _LOGGER.debug("Successfully fetched snapshot: %d bytes", len(image_data))
+
+                        # Cache the snapshot for 2 seconds
+                        self._snapshot_cache[camera_id] = {
+                            "data": image_data,
+                            "expires": time.time() + 2.0,
+                        }
+
+                        return image_data
+
+                    elif response.status == 404:
+                        _LOGGER.warning("Camera %s not found (404)", camera_id)
+                        return None
+
+                    else:
+                        _LOGGER.warning(
+                            "Camera snapshot failed for %s: HTTP %s (attempt %d/%d)",
+                            camera_id,
+                            response.status,
+                            attempt + 1,
+                            max_retries
+                        )
+
+                        # Retry on server errors (5xx) or rate limiting (429)
+                        if attempt < max_retries - 1 and response.status in (429, 500, 502, 503, 504):
+                            await asyncio.sleep(0.5 * (2 ** attempt))  # Exponential backoff
+                            continue
+
+                        return None
+
+            except asyncio.TimeoutError:
                 _LOGGER.warning(
-                    "Camera snapshot failed for %s: HTTP %s - %s",
+                    "Timeout fetching snapshot for %s (attempt %d/%d)",
                     camera_id,
-                    response.status,
-                    await response.text() if response.status != 404 else "Not Found"
+                    attempt + 1,
+                    max_retries
                 )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(0.5 * (2 ** attempt))
+                    continue
                 return None
 
-        except Exception as err:
-            _LOGGER.error("Exception getting camera snapshot for %s: %s", camera_id, err)
-            return None
+            except Exception as err:
+                _LOGGER.warning(
+                    "Exception getting camera snapshot for %s (attempt %d/%d): %s",
+                    camera_id,
+                    attempt + 1,
+                    max_retries,
+                    err
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(0.5 * (2 ** attempt))
+                    continue
+                return None
+
+        return None
 
     def get_camera_stream_url(self, camera_id: str, channel: int = 0) -> str:
         """Get RTSP stream URL for camera.
