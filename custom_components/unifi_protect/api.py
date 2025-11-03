@@ -784,6 +784,7 @@ class UniFiProtectAPI:
         led_settings: dict[str, Any] | None = None,
         lcd_message: dict[str, Any] | None = None,
         mic_volume: int | None = None,
+        speaker_settings: dict[str, Any] | None = None,
         video_mode: str | None = None,
         hdr_type: str | None = None,
         smart_detect_settings: dict[str, Any] | None = None,
@@ -799,6 +800,7 @@ class UniFiProtectAPI:
             led_settings: LED settings (isEnabled)
             lcd_message: LCD doorbell message (type, resetAt, text)
             mic_volume: Microphone volume (0-100)
+            speaker_settings: Speaker settings (volume, isEnabled, areSpeakersMuted)
             video_mode: Video mode (default, highFps, sport, slowShutter, lprReflex, lprNoneReflex)
             hdr_type: HDR mode (auto, on, off)
             smart_detect_settings: Smart detection settings (objectTypes, audioTypes)
@@ -821,6 +823,12 @@ class UniFiProtectAPI:
             if not 0 <= mic_volume <= 100:
                 raise ValueError("Mic volume must be between 0 and 100")
             data["micVolume"] = mic_volume
+        if speaker_settings is not None:
+            # Validate volume if present
+            if "volume" in speaker_settings:
+                if not 0 <= speaker_settings["volume"] <= 100:
+                    raise ValueError("Speaker volume must be between 0 and 100")
+            data["speakerSettings"] = speaker_settings
         if video_mode is not None:
             data["videoMode"] = video_mode
         if hdr_type is not None:

@@ -34,6 +34,7 @@ class ProtectCamera:
     led_settings: dict[str, Any]
     lcd_message: dict[str, Any] | None
     mic_volume: int
+    speaker_settings: dict[str, Any]
     active_patrol_slot: int | None
     video_mode: str
     hdr_type: str
@@ -96,6 +97,7 @@ class ProtectCamera:
             led_settings=data.get("ledSettings", {}),
             lcd_message=data.get("lcdMessage"),
             mic_volume=data.get("micVolume", 100),
+            speaker_settings=data.get("speakerSettings", {}),
             active_patrol_slot=data.get("activePatrolSlot"),
             video_mode=data.get("videoMode", "default"),
             hdr_type=data.get("hdrType", "auto"),
@@ -152,6 +154,8 @@ class ProtectCamera:
             self.lcd_message = data["lcdMessage"]
         if "micVolume" in data:
             self.mic_volume = data["micVolume"]
+        if "speakerSettings" in data:
+            self.speaker_settings = data["speakerSettings"]
         if "activePatrolSlot" in data:
             self.active_patrol_slot = data["activePatrolSlot"]
         if "videoMode" in data:
@@ -282,6 +286,37 @@ class ProtectCamera:
     def is_smart_detected(self) -> bool:
         """Return if any smart detection is triggered."""
         return len(self.detected_object_types) > 0 or len(self.detected_audio_types) > 0
+
+    @property
+    def speaker_volume(self) -> int:
+        """Return speaker volume (0-100).
+
+        Returns:
+            Speaker volume percentage
+        """
+        return self.speaker_settings.get("volume", 100)
+
+    @property
+    def is_speaker_enabled(self) -> bool:
+        """Return if speaker is enabled.
+
+        Returns:
+            True if speaker is enabled
+        """
+        return self.speaker_settings.get("isEnabled", True)
+
+    @property
+    def speaker_muted(self) -> bool:
+        """Return if speaker is muted.
+
+        Returns:
+            True if speaker is muted
+        """
+        # Some cameras might have areSpeakersMuted field
+        if "areSpeakersMuted" in self.speaker_settings:
+            return self.speaker_settings["areSpeakersMuted"]
+        # Or might use volume = 0 to indicate muted
+        return self.speaker_volume == 0
 
 
 @dataclass

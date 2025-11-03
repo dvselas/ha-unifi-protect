@@ -98,22 +98,18 @@ class ProtectMediaPlayer(CoordinatorEntity[ProtectDataUpdateCoordinator], MediaP
     @property
     def volume_level(self) -> float | None:
         """Return the volume level (0..1)."""
-        # Check if camera has speaker_volume field (might be in raw data)
-        if hasattr(self.camera, "speaker_volume") and self.camera.speaker_volume is not None:
+        try:
             return float(self.camera.speaker_volume) / 100.0
-
-        # Default to None if no volume info available
-        return None
+        except (AttributeError, TypeError, ValueError):
+            return None
 
     @property
     def is_volume_muted(self) -> bool:
         """Return if volume is muted."""
-        # Check if camera has speaker_muted field
-        if hasattr(self.camera, "speaker_muted"):
+        try:
             return self.camera.speaker_muted
-
-        # Default to not muted
-        return False
+        except AttributeError:
+            return False
 
     async def async_set_volume_level(self, volume: float) -> None:
         """Set volume level (0..1)."""
@@ -121,21 +117,19 @@ class ProtectMediaPlayer(CoordinatorEntity[ProtectDataUpdateCoordinator], MediaP
             # Convert volume (0..1) to percentage (0..100)
             volume_percent = int(volume * 100)
 
-            # Note: This would require an API method to set speaker volume
-            # For now, log that the feature is not yet implemented
-            _LOGGER.warning(
-                "Speaker volume control for %s not yet implemented in Integration API v1",
-                self.entity_id
-            )
+            _LOGGER.debug("Setting speaker volume for %s to %d%%", self.camera.name, volume_percent)
 
-            # Placeholder for when API supports it:
-            # await self.coordinator.api.update_camera(
-            #     self.camera_id, speaker_volume=volume_percent
-            # )
-            # await self.coordinator.async_request_refresh()
+            # Update speaker settings
+            speaker_settings = {"volume": volume_percent}
+            await self.coordinator.api.update_camera(
+                self.camera_id, speaker_settings=speaker_settings
+            )
+            await self.coordinator.async_request_refresh()
+
+            _LOGGER.info("Successfully set speaker volume for %s to %d%%", self.camera.name, volume_percent)
 
         except Exception as err:
-            _LOGGER.error("Error setting volume for %s: %s", self.entity_id, err)
+            _LOGGER.error("Error setting volume for %s: %s", self.entity_id, err, exc_info=True)
 
     async def async_volume_up(self) -> None:
         """Turn volume up."""
@@ -152,27 +146,47 @@ class ProtectMediaPlayer(CoordinatorEntity[ProtectDataUpdateCoordinator], MediaP
     async def async_mute_volume(self, mute: bool) -> None:
         """Mute the volume."""
         try:
-            # Note: This would require an API method to mute speaker
-            # For now, log that the feature is not yet implemented
-            _LOGGER.warning(
-                "Speaker mute control for %s not yet implemented in Integration API v1",
-                self.entity_id
-            )
+            _LOGGER.debug("%s speaker for %s", "Muting" if mute else "Unmuting", self.camera.name)
 
-            # Placeholder for when API supports it:
-            # await self.coordinator.api.update_camera(
-            #     self.camera_id, speaker_muted=mute
-            # )
-            # await self.coordinator.async_request_refresh()
+            # Update speaker settings with mute state
+            # Try areSpeakersMuted field first, fallback to volume=0 for mute
+            speaker_settings = {}
+
+            # Some cameras support areSpeakersMuted field
+            if "areSpeakersMuted" in self.camera.speaker_settings:
+                speaker_settings["areSpeakersMuted"] = mute
+            else:
+                # Fallback: use volume = 0 for mute, restore previous volume for unmute
+                if mute:
+                    speaker_settings["volume"] = 0
+                else:
+                    # Restore to 50% if we don't know the previous volume
+                    previous_volume = self.camera.speaker_settings.get("volume", 50)
+                    speaker_settings["volume"] = max(previous_volume, 50) if previous_volume == 0 else previous_volume
+
+            await self.coordinator.api.update_camera(
+                self.camera_id, speaker_settings=speaker_settings
+            )
+            await self.coordinator.async_request_refresh()
+
+            _LOGGER.info("Successfully %s speaker for %s", "muted" if mute else "unmuted", self.camera.name)
 
         except Exception as err:
-            _LOGGER.error("Error muting volume for %s: %s", self.entity_id, err)
+            _LOGGER.error("Error muting volume for %s: %s", self.entity_id, err, exc_info=True)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
-        return {
+        attrs = {
             "camera_id": self.camera_id,
             "has_speaker": self.camera.feature_flags.get("hasSpeaker", False),
             "model": self.camera.model,
+            "speaker_volume": self.camera.speaker_volume,
+            "speaker_enabled": self.camera.is_speaker_enabled,
         }
+
+        # Add speaker settings for debugging
+        if self.camera.speaker_settings:
+            attrs["speaker_settings"] = self.camera.speaker_settings
+
+        return attrs
