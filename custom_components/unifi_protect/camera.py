@@ -44,7 +44,6 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
     """Representation of a UniFi Protect camera."""
 
     _attr_has_entity_name = True
-    _attr_supported_features = CameraEntityFeature.STREAM
 
     def __init__(
         self,
@@ -67,11 +66,19 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
         self._attr_device_info = camera.device_info
         # Set name to None so entity uses device name (not "device_name None")
         self._attr_name = None
+        # Enable streaming support
+        self._attr_supported_features = CameraEntityFeature.STREAM
+        self._attr_frontend_stream_type = "hls"
 
     @property
     def camera(self) -> ProtectCamera:
         """Return the camera object."""
         return self.coordinator.cameras[self.camera_id]
+
+    @property
+    def supported_features(self) -> int:
+        """Return supported features for this camera."""
+        return CameraEntityFeature.STREAM
 
     @property
     def available(self) -> bool:
