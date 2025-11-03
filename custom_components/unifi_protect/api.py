@@ -55,6 +55,9 @@ class UniFiProtectAPI:
         self._ws_device_callbacks: list[Callable] = []
         self._ws_event_callbacks: list[Callable] = []
 
+        # Cache for RTSPS stream URLs (camera_id -> {"url": str, "expires": float})
+        self._stream_cache: dict[str, dict[str, Any]] = {}
+
         # Ensure host has protocol
         if not self.host.startswith(("http://", "https://")):
             self.host = f"https://{self.host}"
@@ -764,6 +767,8 @@ class UniFiProtectAPI:
         video_mode: str | None = None,
         hdr_type: str | None = None,
         smart_detect_settings: dict[str, Any] | None = None,
+        wdr_value: int | None = None,
+        zoom_position: int | None = None,
     ) -> dict[str, Any]:
         """Update camera settings using v1 API.
 
@@ -777,6 +782,8 @@ class UniFiProtectAPI:
             video_mode: Video mode (default, highFps, sport, slowShutter, lprReflex, lprNoneReflex)
             hdr_type: HDR mode (auto, on, off)
             smart_detect_settings: Smart detection settings (objectTypes, audioTypes)
+            wdr_value: WDR level (0-3)
+            zoom_position: Zoom position (0-100)
 
         Returns:
             Updated camera data
@@ -800,6 +807,14 @@ class UniFiProtectAPI:
             data["hdrType"] = hdr_type
         if smart_detect_settings is not None:
             data["smartDetectSettings"] = smart_detect_settings
+        if wdr_value is not None:
+            if not 0 <= wdr_value <= 3:
+                raise ValueError("WDR value must be between 0 and 3")
+            data["wdrValue"] = wdr_value
+        if zoom_position is not None:
+            if not 0 <= zoom_position <= 100:
+                raise ValueError("Zoom position must be between 0 and 100")
+            data["zoomPosition"] = zoom_position
 
         return await self.patch(
             f"/proxy/protect/integration/v1/cameras/{camera_id}",
@@ -825,6 +840,43 @@ class UniFiProtectAPI:
             f"/proxy/protect/integration/v1/cameras/{camera_id}/rtsps-stream",
             json={"qualities": qualities},
         )
+
+    def get_cached_stream_url(self, camera_id: str) -> str | None:
+        """Get cached stream URL for camera.
+
+        Args:
+            camera_id: Camera UUID
+
+        Returns:
+            Cached stream URL or None if not cached or expired
+        """
+        import time
+
+        if camera_id not in self._stream_cache:
+            return None
+
+        cache_entry = self._stream_cache[camera_id]
+        # Check if cache entry has expired (cache for 30 minutes)
+        if time.time() > cache_entry["expires"]:
+            del self._stream_cache[camera_id]
+            return None
+
+        return cache_entry["url"]
+
+    def set_cached_stream_url(self, camera_id: str, url: str) -> None:
+        """Cache stream URL for camera.
+
+        Args:
+            camera_id: Camera UUID
+            url: Stream URL to cache
+        """
+        import time
+
+        # Cache for 30 minutes (1800 seconds)
+        self._stream_cache[camera_id] = {
+            "url": url,
+            "expires": time.time() + 1800,
+        }
 
     async def get_camera_rtsps_streams(
         self, camera_id: str

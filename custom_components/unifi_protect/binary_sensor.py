@@ -44,6 +44,58 @@ CAMERA_BINARY_SENSORS: tuple[ProtectBinarySensorEntityDescription, ...] = (
         name="Online",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
     ),
+    ProtectBinarySensorEntityDescription(
+        key="dark",
+        name="Is Dark",
+        device_class=BinarySensorDeviceClass.LIGHT,
+        icon="mdi:brightness-4",
+    ),
+)
+
+# Smart detection sensors (only for cameras with smart detect capability)
+SMART_DETECT_SENSORS: tuple[ProtectBinarySensorEntityDescription, ...] = (
+    ProtectBinarySensorEntityDescription(
+        key="smart_obj",
+        name="Smart Detection",
+        device_class=BinarySensorDeviceClass.OCCUPANCY,
+        icon="mdi:shield-check",
+    ),
+    ProtectBinarySensorEntityDescription(
+        key="person",
+        name="Person Detected",
+        device_class=BinarySensorDeviceClass.OCCUPANCY,
+        icon="mdi:human",
+    ),
+    ProtectBinarySensorEntityDescription(
+        key="vehicle",
+        name="Vehicle Detected",
+        device_class=BinarySensorDeviceClass.OCCUPANCY,
+        icon="mdi:car",
+    ),
+    ProtectBinarySensorEntityDescription(
+        key="package",
+        name="Package Detected",
+        device_class=BinarySensorDeviceClass.OCCUPANCY,
+        icon="mdi:package",
+    ),
+    ProtectBinarySensorEntityDescription(
+        key="animal",
+        name="Animal Detected",
+        device_class=BinarySensorDeviceClass.OCCUPANCY,
+        icon="mdi:paw",
+    ),
+    ProtectBinarySensorEntityDescription(
+        key="license_plate",
+        name="License Plate Detected",
+        device_class=BinarySensorDeviceClass.OCCUPANCY,
+        icon="mdi:card-account-details",
+    ),
+    ProtectBinarySensorEntityDescription(
+        key="face",
+        name="Face Detected",
+        device_class=BinarySensorDeviceClass.OCCUPANCY,
+        icon="mdi:face-recognition",
+    ),
 )
 
 
@@ -72,6 +124,18 @@ async def async_setup_entry(
                     description,
                 )
             )
+
+        # Add smart detection sensors if camera supports them
+        if camera.has_smart_detect:
+            for description in SMART_DETECT_SENSORS:
+                entities.append(
+                    ProtectBinarySensorEntity(
+                        coordinator,
+                        camera_id,
+                        camera,
+                        description,
+                    )
+                )
 
     # Add binary sensors for each sensor
     for sensor_id, sensor in coordinator.sensors.items():
@@ -162,6 +226,23 @@ class ProtectBinarySensorEntity(
             return False
         elif self.entity_description.key == "online":
             return self.camera.is_connected
+        elif self.entity_description.key == "dark":
+            return self.camera.is_dark
+        # Smart detection sensors
+        elif self.entity_description.key == "smart_obj":
+            return self.camera.is_smart_detected
+        elif self.entity_description.key == "person":
+            return self.camera.is_person_detected
+        elif self.entity_description.key == "vehicle":
+            return self.camera.is_vehicle_detected
+        elif self.entity_description.key == "package":
+            return self.camera.is_package_detected
+        elif self.entity_description.key == "animal":
+            return self.camera.is_animal_detected
+        elif self.entity_description.key == "license_plate":
+            return self.camera.is_license_plate_detected
+        elif self.entity_description.key == "face":
+            return self.camera.is_face_detected
 
         return False
 

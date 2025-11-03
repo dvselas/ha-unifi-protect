@@ -139,7 +139,7 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
         """Return the RTSPS stream source.
 
         For Integration API v1, we need to create RTSPS streams first,
-        then use the returned URL.
+        then use the returned URL. Stream URLs are cached for 30 minutes.
 
         Returns:
             RTSPS URL or None if unavailable
@@ -147,6 +147,12 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
         if not self.available:
             _LOGGER.debug("Camera %s not available for streaming", self.camera_id)
             return None
+
+        # Check cache first to avoid repeated API calls
+        cached_url = self.coordinator.api.get_cached_stream_url(self.camera_id)
+        if cached_url:
+            _LOGGER.debug("Using cached stream URL for camera %s", self.camera_id)
+            return cached_url
 
         try:
             # Try to get existing streams first
@@ -157,6 +163,8 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
             if streams and "high" in streams and streams["high"]:
                 stream_url = streams["high"]
                 _LOGGER.debug("Using existing RTSPS stream for camera %s", self.camera_id)
+                # Cache the URL
+                self.coordinator.api.set_cached_stream_url(self.camera_id, stream_url)
                 return stream_url
 
             # No streams exist, create them
@@ -170,11 +178,20 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
             if created_streams and "high" in created_streams and created_streams["high"]:
                 stream_url = created_streams["high"]
                 _LOGGER.info("Created RTSPS stream for camera %s", self.camera_id)
+                # Cache the URL
+                self.coordinator.api.set_cached_stream_url(self.camera_id, stream_url)
                 return stream_url
 
             _LOGGER.warning("No RTSPS stream URL returned for camera %s", self.camera_id)
             return None
 
+        except ConnectionError as err:
+            # Rate limit error - return None and let HA retry later
+            if "rate limit" in str(err).lower():
+                _LOGGER.warning("Rate limit hit for camera %s, will retry later", self.camera_id)
+                return None
+            _LOGGER.error("Connection error getting stream for camera %s: %s", self.camera_id, err)
+            return None
         except Exception as err:
             _LOGGER.error("Error getting stream source for camera %s: %s", self.camera_id, err)
             return None

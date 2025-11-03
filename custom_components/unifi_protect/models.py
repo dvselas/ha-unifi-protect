@@ -39,6 +39,14 @@ class ProtectCamera:
     hdr_type: str
     feature_flags: dict[str, Any]
     smart_detect_settings: dict[str, Any]
+    # Additional sensor fields
+    is_dark: bool
+    uptime: int | None  # Uptime in seconds
+    voltage: float | None  # Voltage for doorbells
+    wdr_value: int | None  # WDR level
+    zoom_position: int | None  # Zoom position (0-100)
+    # Stats
+    stats: dict[str, Any]  # Network and storage stats
     raw_data: dict[str, Any]
 
     @classmethod
@@ -90,6 +98,13 @@ class ProtectCamera:
             hdr_type=data.get("hdrType", "auto"),
             feature_flags=data.get("featureFlags", {}),
             smart_detect_settings=data.get("smartDetectSettings", {}),
+            # Additional sensor fields
+            is_dark=data.get("isDark", False),
+            uptime=data.get("uptime"),
+            voltage=data.get("voltage"),
+            wdr_value=data.get("wdrValue"),
+            zoom_position=data.get("zoomPosition"),
+            stats=data.get("stats", {}),
             raw_data=data,
         )
 
@@ -145,6 +160,20 @@ class ProtectCamera:
         if "smartDetectSettings" in data:
             self.smart_detect_settings = data["smartDetectSettings"]
 
+        # Additional sensor fields
+        if "isDark" in data:
+            self.is_dark = data["isDark"]
+        if "uptime" in data:
+            self.uptime = data["uptime"]
+        if "voltage" in data:
+            self.voltage = data["voltage"]
+        if "wdrValue" in data:
+            self.wdr_value = data["wdrValue"]
+        if "zoomPosition" in data:
+            self.zoom_position = data["zoomPosition"]
+        if "stats" in data:
+            self.stats = data["stats"]
+
         # Update raw data
         self.raw_data.update(data)
 
@@ -168,6 +197,57 @@ class ProtectCamera:
             "sw_version": self.firmware_version,
             "hw_version": self.hardware_revision,
         }
+
+    @property
+    def has_smart_detect(self) -> bool:
+        """Return if camera supports smart detections."""
+        smart_types = self.feature_flags.get("smartDetectTypes", [])
+        return len(smart_types) > 0
+
+    @property
+    def detected_object_types(self) -> list[str]:
+        """Return list of currently detected smart object types."""
+        return self.smart_detect_settings.get("objectTypes", [])
+
+    @property
+    def detected_audio_types(self) -> list[str]:
+        """Return list of currently detected smart audio types."""
+        return self.smart_detect_settings.get("audioTypes", [])
+
+    @property
+    def is_person_detected(self) -> bool:
+        """Return if person is detected."""
+        return "person" in self.detected_object_types
+
+    @property
+    def is_vehicle_detected(self) -> bool:
+        """Return if vehicle is detected."""
+        return "vehicle" in self.detected_object_types
+
+    @property
+    def is_package_detected(self) -> bool:
+        """Return if package is detected."""
+        return "package" in self.detected_object_types
+
+    @property
+    def is_animal_detected(self) -> bool:
+        """Return if animal is detected."""
+        return "animal" in self.detected_object_types
+
+    @property
+    def is_license_plate_detected(self) -> bool:
+        """Return if license plate is detected."""
+        return "licensePlate" in self.detected_object_types
+
+    @property
+    def is_face_detected(self) -> bool:
+        """Return if face is detected."""
+        return "face" in self.detected_object_types
+
+    @property
+    def is_smart_detected(self) -> bool:
+        """Return if any smart detection is triggered."""
+        return len(self.detected_object_types) > 0 or len(self.detected_audio_types) > 0
 
 
 @dataclass

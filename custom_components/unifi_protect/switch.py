@@ -36,6 +36,36 @@ CAMERA_SWITCHES: tuple[ProtectSwitchEntityDescription, ...] = (
         name="Recording",
         icon="mdi:record-rec",
     ),
+    ProtectSwitchEntityDescription(
+        key="status_led",
+        name="Status LED",
+        icon="mdi:led-on",
+        entity_registry_enabled_default=False,
+    ),
+    ProtectSwitchEntityDescription(
+        key="osd_name",
+        name="OSD Name",
+        icon="mdi:label",
+        entity_registry_enabled_default=False,
+    ),
+    ProtectSwitchEntityDescription(
+        key="osd_date",
+        name="OSD Date",
+        icon="mdi:calendar",
+        entity_registry_enabled_default=False,
+    ),
+    ProtectSwitchEntityDescription(
+        key="osd_logo",
+        name="OSD Logo",
+        icon="mdi:watermark",
+        entity_registry_enabled_default=False,
+    ),
+    ProtectSwitchEntityDescription(
+        key="high_fps_mode",
+        name="High FPS Mode",
+        icon="mdi:video-high-definition",
+        entity_registry_enabled_default=False,
+    ),
 )
 
 
@@ -114,6 +144,16 @@ class ProtectSwitchEntity(
             return self.camera.privacy_mode
         elif self.entity_description.key == "recording":
             return self.camera.recording_mode != "never"
+        elif self.entity_description.key == "status_led":
+            return self.camera.led_settings.get("isEnabled", False) if self.camera.led_settings else False
+        elif self.entity_description.key == "osd_name":
+            return self.camera.osd_settings.get("isNameEnabled", False) if self.camera.osd_settings else False
+        elif self.entity_description.key == "osd_date":
+            return self.camera.osd_settings.get("isDateEnabled", False) if self.camera.osd_settings else False
+        elif self.entity_description.key == "osd_logo":
+            return self.camera.osd_settings.get("isLogoEnabled", False) if self.camera.osd_settings else False
+        elif self.entity_description.key == "high_fps_mode":
+            return self.camera.video_mode == "highFps"
 
         return False
 
@@ -125,6 +165,34 @@ class ProtectSwitchEntity(
             elif self.entity_description.key == "recording":
                 await self.coordinator.api.set_recording_mode(
                     self.camera_id, "always"
+                )
+            elif self.entity_description.key == "status_led":
+                led_settings = self.camera.led_settings.copy() if self.camera.led_settings else {}
+                led_settings["isEnabled"] = True
+                await self.coordinator.api.update_camera(
+                    self.camera_id, led_settings=led_settings
+                )
+            elif self.entity_description.key == "osd_name":
+                osd_settings = self.camera.osd_settings.copy() if self.camera.osd_settings else {}
+                osd_settings["isNameEnabled"] = True
+                await self.coordinator.api.update_camera(
+                    self.camera_id, osd_settings=osd_settings
+                )
+            elif self.entity_description.key == "osd_date":
+                osd_settings = self.camera.osd_settings.copy() if self.camera.osd_settings else {}
+                osd_settings["isDateEnabled"] = True
+                await self.coordinator.api.update_camera(
+                    self.camera_id, osd_settings=osd_settings
+                )
+            elif self.entity_description.key == "osd_logo":
+                osd_settings = self.camera.osd_settings.copy() if self.camera.osd_settings else {}
+                osd_settings["isLogoEnabled"] = True
+                await self.coordinator.api.update_camera(
+                    self.camera_id, osd_settings=osd_settings
+                )
+            elif self.entity_description.key == "high_fps_mode":
+                await self.coordinator.api.update_camera(
+                    self.camera_id, video_mode="highFps"
                 )
 
             # Request coordinator update
@@ -141,6 +209,34 @@ class ProtectSwitchEntity(
             elif self.entity_description.key == "recording":
                 await self.coordinator.api.set_recording_mode(
                     self.camera_id, "never"
+                )
+            elif self.entity_description.key == "status_led":
+                led_settings = self.camera.led_settings.copy() if self.camera.led_settings else {}
+                led_settings["isEnabled"] = False
+                await self.coordinator.api.update_camera(
+                    self.camera_id, led_settings=led_settings
+                )
+            elif self.entity_description.key == "osd_name":
+                osd_settings = self.camera.osd_settings.copy() if self.camera.osd_settings else {}
+                osd_settings["isNameEnabled"] = False
+                await self.coordinator.api.update_camera(
+                    self.camera_id, osd_settings=osd_settings
+                )
+            elif self.entity_description.key == "osd_date":
+                osd_settings = self.camera.osd_settings.copy() if self.camera.osd_settings else {}
+                osd_settings["isDateEnabled"] = False
+                await self.coordinator.api.update_camera(
+                    self.camera_id, osd_settings=osd_settings
+                )
+            elif self.entity_description.key == "osd_logo":
+                osd_settings = self.camera.osd_settings.copy() if self.camera.osd_settings else {}
+                osd_settings["isLogoEnabled"] = False
+                await self.coordinator.api.update_camera(
+                    self.camera_id, osd_settings=osd_settings
+                )
+            elif self.entity_description.key == "high_fps_mode":
+                await self.coordinator.api.update_camera(
+                    self.camera_id, video_mode="default"
                 )
 
             # Request coordinator update

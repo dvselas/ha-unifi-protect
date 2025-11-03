@@ -59,6 +59,56 @@ NVR_SENSORS: tuple[ProtectSensorEntityDescription, ...] = (
     ),
 )
 
+CAMERA_DIAGNOSTIC_SENSORS: tuple[ProtectSensorEntityDescription, ...] = (
+    ProtectSensorEntityDescription(
+        key="uptime",
+        name="Uptime",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement="s",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_registry_enabled_default=False,
+    ),
+    ProtectSensorEntityDescription(
+        key="voltage",
+        name="Voltage",
+        device_class=SensorDeviceClass.VOLTAGE,
+        native_unit_of_measurement="V",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+    ),
+    ProtectSensorEntityDescription(
+        key="rx_bitrate",
+        name="Receive Bitrate",
+        device_class=SensorDeviceClass.DATA_RATE,
+        native_unit_of_measurement="Mbps",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+    ),
+    ProtectSensorEntityDescription(
+        key="tx_bitrate",
+        name="Transmit Bitrate",
+        device_class=SensorDeviceClass.DATA_RATE,
+        native_unit_of_measurement="Mbps",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+    ),
+    ProtectSensorEntityDescription(
+        key="wifi_signal",
+        name="WiFi Signal",
+        native_unit_of_measurement="dBm",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+    ),
+    ProtectSensorEntityDescription(
+        key="storage_used",
+        name="Storage Used",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+    ),
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -97,6 +147,25 @@ async def async_setup_entry(
         # Add battery level sensor
         if sensor.battery_level is not None:
             entities.append(ProtectBatterySensor(coordinator, sensor_id, sensor))
+
+    # Add camera diagnostic sensors
+    for camera_id, camera in coordinator.cameras.items():
+        for description in CAMERA_DIAGNOSTIC_SENSORS:
+            # Skip voltage sensor for non-doorbell cameras
+            if description.key == "voltage" and camera.voltage is None:
+                continue
+            # Skip wifi_signal for wired cameras
+            if description.key == "wifi_signal" and not camera.stats.get("wifiConnectionState"):
+                continue
+
+            entities.append(
+                ProtectCameraDiagnosticSensor(
+                    coordinator,
+                    camera_id,
+                    camera,
+                    description,
+                )
+            )
 
     # Add chime sensors
     for chime_id, chime in coordinator.chimes.items():
@@ -170,6 +239,102 @@ class ProtectNVRSensorEntity(
             attrs["doorbell_default_message"] = self.nvr.doorbell_settings.get("defaultMessageText")
             attrs["doorbell_message_timeout_ms"] = self.nvr.doorbell_settings.get("defaultMessageResetTimeoutMs")
             attrs["doorbell_custom_messages"] = self.nvr.doorbell_settings.get("customMessages", [])
+
+        return attrs
+
+
+class ProtectCameraDiagnosticSensor(
+    CoordinatorEntity[ProtectDataUpdateCoordinator], SensorEntity
+):
+    """Representation of a UniFi Protect camera diagnostic sensor."""
+
+    _attr_has_entity_name = True
+    entity_description: ProtectSensorEntityDescription
+
+    def __init__(
+        self,
+        coordinator: ProtectDataUpdateCoordinator,
+        camera_id: str,
+        camera: ProtectCamera,
+        description: ProtectSensorEntityDescription,
+    ) -> None:
+        """Initialize the diagnostic sensor.
+
+        Args:
+            coordinator: The data update coordinator
+            camera_id: Camera ID
+            camera: Camera data
+            description: Entity description
+        """
+        super().__init__(coordinator)
+        self.entity_description = description
+        self.camera_id = camera_id
+        self._attr_unique_id = f"{camera_id}_{description.key}"
+        self._attr_device_info = camera.device_info
+
+    @property
+    def camera(self) -> ProtectCamera:
+        """Return the camera object."""
+        return self.coordinator.cameras[self.camera_id]
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.camera_id in self.coordinator.cameras
+            and self.camera.is_connected
+        )
+
+    @property
+    def native_value(self) -> int | float | None:
+        """Return the state of the sensor."""
+        if not self.available:
+            return None
+
+        if self.entity_description.key == "uptime":
+            return self.camera.uptime
+        elif self.entity_description.key == "voltage":
+            return self.camera.voltage
+        elif self.entity_description.key == "rx_bitrate":
+            # Convert from bps to Mbps
+            rx_bytes = self.camera.stats.get("rxBytes", 0)
+            if rx_bytes:
+                return round(rx_bytes * 8 / 1_000_000, 2)
+            return None
+        elif self.entity_description.key == "tx_bitrate":
+            # Convert from bps to Mbps
+            tx_bytes = self.camera.stats.get("txBytes", 0)
+            if tx_bytes:
+                return round(tx_bytes * 8 / 1_000_000, 2)
+            return None
+        elif self.entity_description.key == "wifi_signal":
+            wifi_state = self.camera.stats.get("wifiConnectionState", {})
+            return wifi_state.get("signalStrength")
+        elif self.entity_description.key == "storage_used":
+            return self.camera.stats.get("storageUsed")
+
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes."""
+        attrs = {}
+
+        # Add network statistics
+        if self.entity_description.key in ["rx_bitrate", "tx_bitrate"]:
+            attrs["rx_bytes"] = self.camera.stats.get("rxBytes", 0)
+            attrs["tx_bytes"] = self.camera.stats.get("txBytes", 0)
+            attrs["rx_packets"] = self.camera.stats.get("rxPackets", 0)
+            attrs["tx_packets"] = self.camera.stats.get("txPackets", 0)
+
+        # Add WiFi details
+        if self.entity_description.key == "wifi_signal":
+            wifi_state = self.camera.stats.get("wifiConnectionState", {})
+            attrs["channel"] = wifi_state.get("channel")
+            attrs["frequency"] = wifi_state.get("frequency")
+            attrs["link_speed_mbps"] = wifi_state.get("linkSpeedMbps")
+            attrs["signal_quality"] = wifi_state.get("signalQuality")
 
         return attrs
 

@@ -32,6 +32,14 @@ async def async_setup_entry(
         if camera.feature_flags.get("hasMic") and camera.is_mic_enabled:
             entities.append(CameraMicVolumeNumber(coordinator, camera_id, camera))
 
+        # Add WDR level control for cameras that support it
+        if camera.wdr_value is not None:
+            entities.append(CameraWDRNumber(coordinator, camera_id, camera))
+
+        # Add zoom control for cameras with PTZ capability
+        if camera.zoom_position is not None:
+            entities.append(CameraZoomNumber(coordinator, camera_id, camera))
+
     # Add chime volume control for each camera paired to a chime
     for chime_id, chime in coordinator.chimes.items():
         for camera_id in chime.camera_ids:
@@ -97,6 +105,116 @@ class CameraMicVolumeNumber(CoordinatorEntity[ProtectDataUpdateCoordinator], Num
             await self.coordinator.async_request_refresh()
         except Exception as err:
             _LOGGER.error("Error setting mic volume for %s: %s", self.entity_id, err)
+
+
+class CameraWDRNumber(CoordinatorEntity[ProtectDataUpdateCoordinator], NumberEntity):
+    """Number entity for camera WDR level."""
+
+    _attr_has_entity_name = True
+    _attr_native_min_value = 0
+    _attr_native_max_value = 3
+    _attr_native_step = 1
+    _attr_mode = NumberMode.SLIDER
+    _attr_icon = "mdi:weather-sunny"
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self,
+        coordinator: ProtectDataUpdateCoordinator,
+        camera_id: str,
+        camera: ProtectCamera,
+    ) -> None:
+        """Initialize the number entity."""
+        super().__init__(coordinator)
+        self.camera_id = camera_id
+        self._attr_unique_id = f"{camera_id}_wdr_level"
+        self._attr_name = "WDR Level"
+        self._attr_device_info = camera.device_info
+
+    @property
+    def camera(self) -> ProtectCamera:
+        """Return the camera object."""
+        return self.coordinator.cameras[self.camera_id]
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.camera_id in self.coordinator.cameras
+            and self.camera.is_connected
+            and self.camera.wdr_value is not None
+        )
+
+    @property
+    def native_value(self) -> float:
+        """Return the current WDR level."""
+        return float(self.camera.wdr_value) if self.camera.wdr_value is not None else 0.0
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the WDR level."""
+        try:
+            await self.coordinator.api.update_camera(
+                self.camera_id, wdr_value=int(value)
+            )
+            await self.coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error("Error setting WDR level for %s: %s", self.entity_id, err)
+
+
+class CameraZoomNumber(CoordinatorEntity[ProtectDataUpdateCoordinator], NumberEntity):
+    """Number entity for camera zoom position."""
+
+    _attr_has_entity_name = True
+    _attr_native_min_value = 0
+    _attr_native_max_value = 100
+    _attr_native_step = 1
+    _attr_mode = NumberMode.SLIDER
+    _attr_icon = "mdi:magnify"
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self,
+        coordinator: ProtectDataUpdateCoordinator,
+        camera_id: str,
+        camera: ProtectCamera,
+    ) -> None:
+        """Initialize the number entity."""
+        super().__init__(coordinator)
+        self.camera_id = camera_id
+        self._attr_unique_id = f"{camera_id}_zoom_position"
+        self._attr_name = "Zoom Position"
+        self._attr_device_info = camera.device_info
+
+    @property
+    def camera(self) -> ProtectCamera:
+        """Return the camera object."""
+        return self.coordinator.cameras[self.camera_id]
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.camera_id in self.coordinator.cameras
+            and self.camera.is_connected
+            and self.camera.zoom_position is not None
+        )
+
+    @property
+    def native_value(self) -> float:
+        """Return the current zoom position."""
+        return float(self.camera.zoom_position) if self.camera.zoom_position is not None else 0.0
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the zoom position."""
+        try:
+            await self.coordinator.api.update_camera(
+                self.camera_id, zoom_position=int(value)
+            )
+            await self.coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error("Error setting zoom position for %s: %s", self.entity_id, err)
 
 
 class ChimeRingVolumeNumber(CoordinatorEntity[ProtectDataUpdateCoordinator], NumberEntity):
