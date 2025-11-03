@@ -141,6 +141,9 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
         For Integration API v1, we need to create RTSPS streams first,
         then use the returned URL. Stream URLs are cached for 30 minutes.
 
+        Uses "package" quality for fastest loading time, which is optimized
+        for quick preview and lower latency.
+
         Returns:
             RTSPS URL or None if unavailable
         """
@@ -155,29 +158,28 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
             return cached_url
 
         try:
-            # Try to get existing streams first
-            _LOGGER.debug("Getting RTSPS streams for camera %s", self.camera_id)
-            streams = await self.coordinator.api.get_camera_rtsps_streams(self.camera_id)
-
-            # Check if we have a high quality stream already
-            if streams and "high" in streams and streams["high"]:
-                stream_url = streams["high"]
-                _LOGGER.debug("Using existing RTSPS stream for camera %s", self.camera_id)
-                # Cache the URL
-                self.coordinator.api.set_cached_stream_url(self.camera_id, stream_url)
-                return stream_url
-
-            # No streams exist, create them
-            _LOGGER.info("Creating RTSPS streams for camera %s", self.camera_id)
+            # Create streams with package quality for fastest loading
+            # Package channel is optimized for low latency and quick preview
+            _LOGGER.debug("Creating RTSPS streams for camera %s", self.camera_id)
             created_streams = await self.coordinator.api.create_camera_rtsps_streams(
                 self.camera_id,
-                ["high", "medium", "low"]
+                ["package", "high", "medium"]
             )
 
-            # Return the high quality stream URL
-            if created_streams and "high" in created_streams and created_streams["high"]:
-                stream_url = created_streams["high"]
-                _LOGGER.info("Created RTSPS stream for camera %s", self.camera_id)
+            # Prefer package stream for fastest loading, fallback to high
+            stream_url = None
+            if created_streams:
+                if "package" in created_streams and created_streams["package"]:
+                    stream_url = created_streams["package"]
+                    _LOGGER.debug("Using package (fast) RTSPS stream for camera %s", self.camera_id)
+                elif "high" in created_streams and created_streams["high"]:
+                    stream_url = created_streams["high"]
+                    _LOGGER.debug("Using high quality RTSPS stream for camera %s", self.camera_id)
+                elif "medium" in created_streams and created_streams["medium"]:
+                    stream_url = created_streams["medium"]
+                    _LOGGER.debug("Using medium quality RTSPS stream for camera %s", self.camera_id)
+
+            if stream_url:
                 # Cache the URL
                 self.coordinator.api.set_cached_stream_url(self.camera_id, stream_url)
                 return stream_url

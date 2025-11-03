@@ -279,6 +279,9 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
         await self.async_config_entry_first_refresh()
         _LOGGER.info("Initial data refresh completed successfully")
 
+        # Proactively create camera streams for faster first load
+        await self._create_camera_streams()
+
         # Connect WebSocket for real-time updates
         _LOGGER.debug("Connecting WebSocket for real-time updates")
         self.api.register_device_callback(self._handle_device_update)
@@ -295,6 +298,70 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Close API connection
         await self.api.close()
+
+    async def _create_camera_streams(self) -> None:
+        """Proactively create RTSPS streams for all cameras.
+
+        This creates streams in the background so they're ready when users
+        open camera feeds, significantly reducing initial loading time.
+        Uses package quality for fastest loading and lowest latency.
+        """
+        import asyncio
+
+        if not self.cameras:
+            _LOGGER.debug("No cameras found, skipping stream creation")
+            return
+
+        _LOGGER.info("Proactively creating RTSPS streams for %d cameras", len(self.cameras))
+
+        async def create_stream_for_camera(camera_id: str, camera: ProtectCamera) -> None:
+            """Create stream for a single camera."""
+            try:
+                # Only create streams for connected cameras
+                if not camera.is_connected:
+                    _LOGGER.debug("Skipping stream creation for disconnected camera %s", camera.name)
+                    return
+
+                # Create streams with package quality for fastest loading
+                streams = await self.api.create_camera_rtsps_streams(
+                    camera_id,
+                    ["package", "high", "medium"]
+                )
+
+                # Cache the stream URL
+                if streams:
+                    stream_url = None
+                    if "package" in streams and streams["package"]:
+                        stream_url = streams["package"]
+                    elif "high" in streams and streams["high"]:
+                        stream_url = streams["high"]
+                    elif "medium" in streams and streams["medium"]:
+                        stream_url = streams["medium"]
+
+                    if stream_url:
+                        self.api.set_cached_stream_url(camera_id, stream_url)
+                        _LOGGER.debug("Pre-created stream for camera %s", camera.name)
+
+            except Exception as err:
+                # Log but don't fail - streams will be created on-demand if this fails
+                _LOGGER.debug("Could not pre-create stream for camera %s: %s", camera.name, err)
+
+        # Create streams for all cameras concurrently (with limit to avoid rate limiting)
+        tasks = [
+            create_stream_for_camera(camera_id, camera)
+            for camera_id, camera in self.cameras.items()
+        ]
+
+        # Process in batches of 3 to avoid overwhelming the API
+        batch_size = 3
+        for i in range(0, len(tasks), batch_size):
+            batch = tasks[i:i + batch_size]
+            await asyncio.gather(*batch, return_exceptions=True)
+            # Small delay between batches to be gentle on the API
+            if i + batch_size < len(tasks):
+                await asyncio.sleep(0.5)
+
+        _LOGGER.info("Completed pre-creating camera streams")
 
     def register_doorbell_callback(self, camera_id: str, callback) -> None:
         """Register a callback for doorbell ring events.
