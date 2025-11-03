@@ -293,6 +293,21 @@ class UniFiProtectAPI:
             data["host"] = self.host
         return data
 
+    async def get_nvr_bootstrap(self) -> dict[str, Any]:
+        """Get full NVR data from bootstrap endpoint (includes storage stats).
+
+        This endpoint provides complete NVR information including storage statistics
+        which are not available in the Integration API v1 endpoints.
+
+        Returns:
+            Full bootstrap data with NVR including storageStats
+
+        Raises:
+            AuthenticationError: If authentication fails
+            ConnectionError: If connection fails
+        """
+        return await self.get("/proxy/protect/api/bootstrap")
+
     # Device asset file management methods
 
     async def upload_asset_file(
@@ -681,6 +696,20 @@ class UniFiProtectAPI:
                 liveviews_data = await self.get_liveviews()
             except Exception as err:
                 _LOGGER.warning("Error fetching liveviews data: %s", err)
+
+            # Fetch storage stats from bootstrap endpoint
+            # Integration API v1 doesn't include storage in NVR endpoint
+            try:
+                full_bootstrap = await self.get_nvr_bootstrap()
+                if full_bootstrap and "nvr" in full_bootstrap:
+                    nvr_with_storage = full_bootstrap["nvr"]
+                    # Merge storage stats into our nvr_data
+                    if "storageStats" in nvr_with_storage:
+                        nvr_data["storageStats"] = nvr_with_storage["storageStats"]
+                        _LOGGER.debug("Added storage stats to NVR data")
+                await asyncio.sleep(0.2)
+            except Exception as err:
+                _LOGGER.warning("Error fetching storage stats: %s", err)
 
             # Combine into bootstrap structure
             bootstrap_data = {

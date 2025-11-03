@@ -83,6 +83,9 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                     _LOGGER.warning("Error fetching NVR v1 API data: %s", err)
                 # Don't fail the entire update if NVR v1 API fails
 
+            # Note: Storage stats are fetched and merged into bootstrap by get_bootstrap()
+            # so no additional fetch is needed here
+
             # Update cameras
             cameras_data = bootstrap.get("cameras", [])
             current_camera_ids = set()
