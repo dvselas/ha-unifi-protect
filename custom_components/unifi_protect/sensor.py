@@ -102,6 +102,8 @@ async def async_setup_entry(
     for chime_id, chime in coordinator.chimes.items():
         # Add paired camera count sensor
         entities.append(ProtectChimePairedCamerasSensor(coordinator, chime_id, chime))
+        # Add last ring sensor
+        entities.append(ProtectChimeLastRingSensor(coordinator, chime_id, chime))
 
     async_add_entities(entities)
 
@@ -428,3 +430,49 @@ class ProtectChimePairedCamerasSensor(
             "is_connected": self.chime.is_connected,
             "state": self.chime.state,
         }
+
+
+class ProtectChimeLastRingSensor(
+    CoordinatorEntity[ProtectDataUpdateCoordinator], SensorEntity
+):
+    """Sensor for last time the chime rang."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:bell-ring-outline"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(
+        self,
+        coordinator: ProtectDataUpdateCoordinator,
+        chime_id: str,
+        chime: ProtectChime,
+    ) -> None:
+        """Initialize the last ring sensor."""
+        super().__init__(coordinator)
+        self.chime_id = chime_id
+        self._attr_unique_id = f"{chime_id}_last_ring"
+        self._attr_name = "Last Ring"
+        self._attr_device_info = chime.device_info
+
+    @property
+    def chime(self) -> ProtectChime:
+        """Return the chime object."""
+        return self.coordinator.chimes[self.chime_id]
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.chime_id in self.coordinator.chimes
+        )
+
+    @property
+    def native_value(self):
+        """Return the last ring timestamp."""
+        if self.chime.last_ring is None:
+            return None
+
+        # Convert Unix timestamp (seconds) to datetime
+        from datetime import datetime, timezone
+        return datetime.fromtimestamp(self.chime.last_ring, tz=timezone.utc)

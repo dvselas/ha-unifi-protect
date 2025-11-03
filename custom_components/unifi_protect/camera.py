@@ -65,6 +65,8 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
         self.camera_id = camera_id
         self._attr_unique_id = camera_id
         self._attr_device_info = camera.device_info
+        # Set name to None so entity uses device name (not "device_name None")
+        self._attr_name = None
 
     @property
     def camera(self) -> ProtectCamera:
@@ -134,15 +136,48 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
         return await self.coordinator.api.get_camera_snapshot(self.camera_id)
 
     async def stream_source(self) -> str | None:
-        """Return the RTSP stream source.
+        """Return the RTSPS stream source.
+
+        For Integration API v1, we need to create RTSPS streams first,
+        then use the returned URL.
 
         Returns:
-            RTSP URL or None if unavailable
+            RTSPS URL or None if unavailable
         """
         if not self.available:
+            _LOGGER.debug("Camera %s not available for streaming", self.camera_id)
             return None
 
-        return self.coordinator.api.get_camera_stream_url(self.camera_id, channel=0)
+        try:
+            # Try to get existing streams first
+            _LOGGER.debug("Getting RTSPS streams for camera %s", self.camera_id)
+            streams = await self.coordinator.api.get_camera_rtsps_streams(self.camera_id)
+
+            # Check if we have a high quality stream already
+            if streams and "high" in streams and streams["high"]:
+                stream_url = streams["high"]
+                _LOGGER.debug("Using existing RTSPS stream for camera %s", self.camera_id)
+                return stream_url
+
+            # No streams exist, create them
+            _LOGGER.info("Creating RTSPS streams for camera %s", self.camera_id)
+            created_streams = await self.coordinator.api.create_camera_rtsps_streams(
+                self.camera_id,
+                ["high", "medium", "low"]
+            )
+
+            # Return the high quality stream URL
+            if created_streams and "high" in created_streams and created_streams["high"]:
+                stream_url = created_streams["high"]
+                _LOGGER.info("Created RTSPS stream for camera %s", self.camera_id)
+                return stream_url
+
+            _LOGGER.warning("No RTSPS stream URL returned for camera %s", self.camera_id)
+            return None
+
+        except Exception as err:
+            _LOGGER.error("Error getting stream source for camera %s: %s", self.camera_id, err)
+            return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

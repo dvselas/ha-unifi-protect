@@ -424,6 +424,31 @@ class UniFiProtectAPI:
             json=data,
         )
 
+    async def play_chime(self, chime_id: str, repeat_times: int = 1) -> None:
+        """Play/ring the chime manually.
+
+        Args:
+            chime_id: Chime UUID
+            repeat_times: How many times to repeat the chime (1-10, default 1)
+        """
+        if not 1 <= repeat_times <= 10:
+            raise ValueError("repeat_times must be between 1 and 10")
+
+        await self.post(
+            f"/proxy/protect/integration/v1/chimes/{chime_id}/play",
+            json={"repeatTimes": repeat_times},
+        )
+
+    async def reboot_chime(self, chime_id: str) -> None:
+        """Reboot chime device.
+
+        Args:
+            chime_id: Chime UUID
+        """
+        await self.post(
+            f"/proxy/protect/integration/v1/chimes/{chime_id}/reboot"
+        )
+
     # Viewer methods
 
     async def get_viewers(self) -> list[dict[str, Any]]:
@@ -803,18 +828,26 @@ class UniFiProtectAPI:
 
     async def get_camera_rtsps_streams(
         self, camera_id: str
-    ) -> dict[str, str | None]:
+    ) -> dict[str, str | None] | None:
         """Get existing RTSPS streams for camera.
 
         Args:
             camera_id: Camera UUID
 
         Returns:
-            Dictionary with quality levels and their RTSPS URLs (or None if not created)
+            Dictionary with quality levels and their RTSPS URLs, or None if no streams exist
         """
-        return await self.get(
-            f"/proxy/protect/integration/v1/cameras/{camera_id}/rtsps-stream"
-        )
+        try:
+            return await self.get(
+                f"/proxy/protect/integration/v1/cameras/{camera_id}/rtsps-stream"
+            )
+        except ProtectAPIError as err:
+            # 404 means no streams created yet, which is normal
+            if "404" in str(err) or "not found" in str(err).lower():
+                _LOGGER.debug("No RTSPS streams exist yet for camera %s", camera_id)
+                return None
+            # Other errors should be raised
+            raise
 
     async def delete_camera_rtsps_streams(
         self, camera_id: str, qualities: list[str]

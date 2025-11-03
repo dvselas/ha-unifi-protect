@@ -779,6 +779,7 @@ class ProtectChime:
     state: str
     camera_ids: list[str]
     ring_settings: list[dict[str, Any]]
+    last_ring: int | None  # Unix timestamp of last time chime rang
     raw_data: dict[str, Any]
 
     @classmethod
@@ -798,6 +799,7 @@ class ProtectChime:
             state=data.get("state", "DISCONNECTED"),
             camera_ids=data.get("cameraIds", []),
             ring_settings=data.get("ringSettings", []),
+            last_ring=data.get("lastRing"),
             raw_data=data,
         )
 
@@ -815,6 +817,8 @@ class ProtectChime:
             self.camera_ids = data["cameraIds"]
         if "ringSettings" in data:
             self.ring_settings = data["ringSettings"]
+        if "lastRing" in data:
+            self.last_ring = data["lastRing"]
 
         # Update raw data
         self.raw_data.update(data)
