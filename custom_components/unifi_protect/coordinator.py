@@ -325,16 +325,17 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                 streams = await self.api.get_camera_rtsps_streams(camera_id)
 
                 if streams:
-                    # Prefer package stream, fallback to high/medium/low
+                    # Prefer highest quality: high -> medium -> low -> package
+                    # Package stream is for dedicated package cameras on doorbells
                     stream_url = None
-                    if streams.get("package"):
-                        stream_url = streams["package"]
-                    elif streams.get("high"):
+                    if streams.get("high"):
                         stream_url = streams["high"]
                     elif streams.get("medium"):
                         stream_url = streams["medium"]
                     elif streams.get("low"):
                         stream_url = streams["low"]
+                    elif streams.get("package"):
+                        stream_url = streams["package"]
 
                     if stream_url:
                         self.api.set_cached_stream_url(camera_id, stream_url)

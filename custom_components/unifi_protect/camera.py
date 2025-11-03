@@ -170,12 +170,10 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
             streams = await self.coordinator.api.get_camera_rtsps_streams(self.camera_id)
 
             if streams:
-                # Prefer package stream for fastest loading, fallback to high/medium/low
+                # Prefer highest quality stream: high -> medium -> low -> package
+                # Package stream is for dedicated package cameras on doorbells
                 stream_url = None
-                if streams.get("package"):
-                    stream_url = streams["package"]
-                    _LOGGER.debug("Using package (fast) RTSPS stream for camera %s", self.camera_id)
-                elif streams.get("high"):
+                if streams.get("high"):
                     stream_url = streams["high"]
                     _LOGGER.debug("Using high quality RTSPS stream for camera %s", self.camera_id)
                 elif streams.get("medium"):
@@ -184,6 +182,9 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
                 elif streams.get("low"):
                     stream_url = streams["low"]
                     _LOGGER.debug("Using low quality RTSPS stream for camera %s", self.camera_id)
+                elif streams.get("package"):
+                    stream_url = streams["package"]
+                    _LOGGER.debug("Using package camera RTSPS stream for camera %s", self.camera_id)
 
                 if stream_url:
                     # Cache the URL
