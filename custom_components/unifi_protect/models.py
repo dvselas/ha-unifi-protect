@@ -288,6 +288,36 @@ class ProtectCamera:
         return len(self.detected_object_types) > 0 or len(self.detected_audio_types) > 0
 
     @property
+    def is_doorbell(self) -> bool:
+        """Return if camera is a doorbell.
+
+        Checks multiple indicators:
+        - type field equals "doorbell"
+        - model name contains "doorbell"
+        - feature flags indicate doorbell capability
+
+        Returns:
+            True if camera is a doorbell
+        """
+        # Check type field
+        if self.type and "doorbell" in self.type.lower():
+            return True
+
+        # Check model name
+        if self.model and "doorbell" in self.model.lower():
+            return True
+
+        # Check feature flags
+        if self.feature_flags.get("hasChime") or self.feature_flags.get("canRing"):
+            return True
+
+        # Check if LCD message is available (doorbell-specific feature)
+        if self.lcd_message is not None:
+            return True
+
+        return False
+
+    @property
     def speaker_volume(self) -> int:
         """Return speaker volume (0-100).
 

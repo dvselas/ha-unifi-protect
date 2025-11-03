@@ -72,7 +72,7 @@ async def async_setup_entry(
             entities.append(CameraHDRModeSelect(coordinator, camera_id, camera))
 
         # Add LCD message select for doorbell cameras
-        if camera.type == "doorbell" and camera.lcd_message:
+        if camera.is_doorbell and camera.lcd_message:
             entities.append(DoorbellLCDMessageSelect(coordinator, camera_id, camera))
 
     async_add_entities(entities)
@@ -262,7 +262,7 @@ class DoorbellLCDMessageSelect(CoordinatorEntity[ProtectDataUpdateCoordinator], 
             self.coordinator.last_update_success
             and self.camera_id in self.coordinator.cameras
             and self.camera.is_connected
-            and self.camera.type == "doorbell"
+            and self.camera.is_doorbell
         )
 
     @property

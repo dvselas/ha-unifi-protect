@@ -160,7 +160,7 @@ async def async_setup_entry(
     for camera_id, camera in coordinator.cameras.items():
         for description in CAMERA_SENSORS:
             # Only add last_ring sensor for doorbell cameras
-            if description.key == "last_ring" and camera.type != "doorbell":
+            if description.key == "last_ring" and not camera.is_doorbell:
                 continue
 
             entities.append(

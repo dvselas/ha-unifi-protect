@@ -52,7 +52,7 @@ async def async_setup_entry(
 
     # Add doorbell event entities for doorbell cameras
     for camera_id, camera in coordinator.cameras.items():
-        if camera.type == "doorbell":
+        if camera.is_doorbell:
             for description in CAMERA_EVENT_ENTITIES:
                 entities.append(
                     ProtectDoorbellEventEntity(

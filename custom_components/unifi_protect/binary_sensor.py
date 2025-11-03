@@ -128,7 +128,7 @@ async def async_setup_entry(
     for camera_id, camera in coordinator.cameras.items():
         for description in CAMERA_BINARY_SENSORS:
             # Skip doorbell sensor for non-doorbell cameras
-            if description.key == "doorbell" and camera.type != "doorbell":
+            if description.key == "doorbell" and not camera.is_doorbell:
                 continue
 
             entities.append(
