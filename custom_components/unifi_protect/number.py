@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import ProtectDataUpdateCoordinator
-from .models import ProtectCamera, ProtectChime
+from .models import ProtectCamera, ProtectChime, ProtectLight
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,6 +49,13 @@ async def async_setup_entry(
                         coordinator, chime_id, chime, camera_id
                     )
                 )
+
+    # Add floodlight controls
+    for light_id, light in coordinator.lights.items():
+        # PIR sensitivity control
+        entities.append(LightPIRSensitivityNumber(coordinator, light_id, light))
+        # Auto-shutoff duration control
+        entities.append(LightPIRDurationNumber(coordinator, light_id, light))
 
     async_add_entities(entities)
 
@@ -300,3 +307,115 @@ class ChimeRingVolumeNumber(CoordinatorEntity[ProtectDataUpdateCoordinator], Num
             await self.coordinator.async_request_refresh()
         except Exception as err:
             _LOGGER.error("Error setting chime ring volume for %s: %s", self.entity_id, err)
+
+
+class LightPIRSensitivityNumber(CoordinatorEntity[ProtectDataUpdateCoordinator], NumberEntity):
+    """Number entity for floodlight PIR motion sensitivity."""
+
+    _attr_has_entity_name = True
+    _attr_native_min_value = 0
+    _attr_native_max_value = 100
+    _attr_native_step = 1
+    _attr_mode = NumberMode.SLIDER
+    _attr_icon = "mdi:motion-sensor"
+    _attr_name = "PIR Motion Sensitivity"
+
+    def __init__(
+        self,
+        coordinator: ProtectDataUpdateCoordinator,
+        light_id: str,
+        light: ProtectLight,
+    ) -> None:
+        """Initialize the number entity."""
+        super().__init__(coordinator)
+        self.light_id = light_id
+        self._attr_unique_id = f"{light_id}_pir_sensitivity"
+        self._attr_device_info = light.device_info
+
+    @property
+    def light(self) -> ProtectLight:
+        """Return the light object."""
+        return self.coordinator.lights[self.light_id]
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.light_id in self.coordinator.lights
+            and self.light.is_connected
+        )
+
+    @property
+    def native_value(self) -> float:
+        """Return the current PIR sensitivity."""
+        return float(self.light.pir_sensitivity)
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the PIR sensitivity."""
+        try:
+            light_device_settings = {"pirSensitivity": int(value)}
+            await self.coordinator.api.update_light(
+                self.light_id, light_device_settings=light_device_settings
+            )
+            await self.coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error("Error setting PIR sensitivity for %s: %s", self.entity_id, err)
+
+
+class LightPIRDurationNumber(CoordinatorEntity[ProtectDataUpdateCoordinator], NumberEntity):
+    """Number entity for floodlight auto-shutoff duration."""
+
+    _attr_has_entity_name = True
+    _attr_native_min_value = 15
+    _attr_native_max_value = 300
+    _attr_native_step = 15
+    _attr_mode = NumberMode.SLIDER
+    _attr_icon = "mdi:timer"
+    _attr_name = "Auto-shutoff Duration"
+    _attr_native_unit_of_measurement = "s"
+
+    def __init__(
+        self,
+        coordinator: ProtectDataUpdateCoordinator,
+        light_id: str,
+        light: ProtectLight,
+    ) -> None:
+        """Initialize the number entity."""
+        super().__init__(coordinator)
+        self.light_id = light_id
+        self._attr_unique_id = f"{light_id}_pir_duration"
+        self._attr_device_info = light.device_info
+
+    @property
+    def light(self) -> ProtectLight:
+        """Return the light object."""
+        return self.coordinator.lights[self.light_id]
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.light_id in self.coordinator.lights
+            and self.light.is_connected
+        )
+
+    @property
+    def native_value(self) -> float:
+        """Return the current auto-shutoff duration in seconds."""
+        # Convert milliseconds to seconds
+        return float(self.light.pir_duration / 1000)
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the auto-shutoff duration."""
+        try:
+            # Convert seconds to milliseconds
+            duration_ms = int(value * 1000)
+            light_device_settings = {"pirDuration": duration_ms}
+            await self.coordinator.api.update_light(
+                self.light_id, light_device_settings=light_device_settings
+            )
+            await self.coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error("Error setting auto-shutoff duration for %s: %s", self.entity_id, err)

@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import ProtectDataUpdateCoordinator
-from .models import ProtectCamera
+from .models import ProtectCamera, ProtectLight
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,6 +90,16 @@ async def async_setup_entry(
                     description,
                 )
             )
+
+    # Add status LED switch for each floodlight
+    for light_id, light in coordinator.lights.items():
+        entities.append(
+            ProtectLightStatusLEDSwitch(
+                coordinator,
+                light_id,
+                light,
+            )
+        )
 
     async_add_entities(entities)
 
@@ -242,5 +252,74 @@ class ProtectSwitchEntity(
             # Request coordinator update
             await self.coordinator.async_request_refresh()
 
+        except Exception as err:
+            _LOGGER.error("Error turning off %s: %s", self.entity_id, err)
+
+
+class ProtectLightStatusLEDSwitch(
+    CoordinatorEntity[ProtectDataUpdateCoordinator], SwitchEntity
+):
+    """Switch entity for floodlight status LED."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:led-on"
+    _attr_name = "Status Light"
+
+    def __init__(
+        self,
+        coordinator: ProtectDataUpdateCoordinator,
+        light_id: str,
+        light: ProtectLight,
+    ) -> None:
+        """Initialize the switch.
+
+        Args:
+            coordinator: The data update coordinator
+            light_id: Light ID
+            light: Light data
+        """
+        super().__init__(coordinator)
+        self.light_id = light_id
+        self._attr_unique_id = f"{light_id}_status_light"
+        self._attr_device_info = light.device_info
+
+    @property
+    def light(self) -> ProtectLight:
+        """Return the light object."""
+        return self.coordinator.lights[self.light_id]
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.light_id in self.coordinator.lights
+            and self.light.is_connected
+        )
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if the switch is on."""
+        return self.light.is_indicator_enabled
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn the switch on."""
+        try:
+            light_device_settings = {"isIndicatorEnabled": True}
+            await self.coordinator.api.update_light(
+                self.light_id, light_device_settings=light_device_settings
+            )
+            await self.coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error("Error turning on %s: %s", self.entity_id, err)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the switch off."""
+        try:
+            light_device_settings = {"isIndicatorEnabled": False}
+            await self.coordinator.api.update_light(
+                self.light_id, light_device_settings=light_device_settings
+            )
+            await self.coordinator.async_request_refresh()
         except Exception as err:
             _LOGGER.error("Error turning off %s: %s", self.entity_id, err)

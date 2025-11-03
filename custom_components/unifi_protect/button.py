@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import ProtectDataUpdateCoordinator
-from .models import ProtectCamera, ProtectChime
+from .models import ProtectCamera, ProtectChime, ProtectLight
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +39,15 @@ CHIME_BUTTONS: tuple[ProtectButtonEntityDescription, ...] = (
         name="Play Chime",
         icon="mdi:bell-ring",
     ),
+    ProtectButtonEntityDescription(
+        key="reboot",
+        name="Reboot",
+        icon="mdi:restart",
+        entity_registry_enabled_default=False,  # Disabled by default
+    ),
+)
+
+LIGHT_BUTTONS: tuple[ProtectButtonEntityDescription, ...] = (
     ProtectButtonEntityDescription(
         key="reboot",
         name="Reboot",
@@ -78,6 +87,18 @@ async def async_setup_entry(
                     coordinator,
                     chime_id,
                     chime,
+                    description,
+                )
+            )
+
+    # Add buttons for each light (floodlight)
+    for light_id, light in coordinator.lights.items():
+        for description in LIGHT_BUTTONS:
+            entities.append(
+                ProtectLightButtonEntity(
+                    coordinator,
+                    light_id,
+                    light,
                     description,
                 )
             )
@@ -202,3 +223,58 @@ class ProtectChimeButtonEntity(
 
         except Exception as err:
             _LOGGER.error("Error pressing chime button %s: %s", self.entity_id, err)
+
+
+class ProtectLightButtonEntity(
+    CoordinatorEntity[ProtectDataUpdateCoordinator], ButtonEntity
+):
+    """Representation of a UniFi Protect light button."""
+
+    _attr_has_entity_name = True
+    entity_description: ProtectButtonEntityDescription
+
+    def __init__(
+        self,
+        coordinator: ProtectDataUpdateCoordinator,
+        light_id: str,
+        light: ProtectLight,
+        description: ProtectButtonEntityDescription,
+    ) -> None:
+        """Initialize the button.
+
+        Args:
+            coordinator: The data update coordinator
+            light_id: Light ID
+            light: Light data
+            description: Entity description
+        """
+        super().__init__(coordinator)
+        self.entity_description = description
+        self.light_id = light_id
+        self._attr_unique_id = f"{light_id}_{description.key}"
+        self._attr_device_info = light.device_info
+
+    @property
+    def light(self) -> ProtectLight:
+        """Return the light object."""
+        return self.coordinator.lights[self.light_id]
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.light_id in self.coordinator.lights
+            and self.light.is_connected
+        )
+
+    async def async_press(self) -> None:
+        """Handle the button press."""
+        try:
+            if self.entity_description.key == "reboot":
+                _LOGGER.info("Rebooting light %s", self.light.name)
+                await self.coordinator.api.reboot_light(self.light_id)
+                await self.coordinator.async_request_refresh()
+
+        except Exception as err:
+            _LOGGER.error("Error pressing light button %s: %s", self.entity_id, err)

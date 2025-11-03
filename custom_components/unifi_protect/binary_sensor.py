@@ -16,7 +16,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import ProtectDataUpdateCoordinator
-from .models import ProtectCamera, ProtectChime, ProtectSensor
+from .models import ProtectCamera, ProtectChime, ProtectLight, ProtectSensor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,6 +98,21 @@ SMART_DETECT_SENSORS: tuple[ProtectBinarySensorEntityDescription, ...] = (
     ),
 )
 
+LIGHT_BINARY_SENSORS: tuple[ProtectBinarySensorEntityDescription, ...] = (
+    ProtectBinarySensorEntityDescription(
+        key="dark",
+        name="Is Dark",
+        device_class=BinarySensorDeviceClass.LIGHT,
+        icon="mdi:brightness-4",
+    ),
+    ProtectBinarySensorEntityDescription(
+        key="motion",
+        name="Motion Detected",
+        device_class=BinarySensorDeviceClass.MOTION,
+        icon="mdi:motion-sensor",
+    ),
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -167,6 +182,18 @@ async def async_setup_entry(
     for chime_id, chime in coordinator.chimes.items():
         # Connection status sensor
         entities.append(ProtectChimeConnectionSensor(coordinator, chime_id, chime))
+
+    # Add binary sensors for each light (floodlight)
+    for light_id, light in coordinator.lights.items():
+        for description in LIGHT_BINARY_SENSORS:
+            entities.append(
+                ProtectLightBinarySensorEntity(
+                    coordinator,
+                    light_id,
+                    light,
+                    description,
+                )
+            )
 
     async_add_entities(entities)
 
@@ -568,3 +595,57 @@ class ProtectChimeConnectionSensor(CoordinatorEntity[ProtectDataUpdateCoordinato
     def is_on(self) -> bool:
         """Return true if chime is connected."""
         return self.chime.is_connected
+
+
+class ProtectLightBinarySensorEntity(
+    CoordinatorEntity[ProtectDataUpdateCoordinator], BinarySensorEntity
+):
+    """Representation of a UniFi Protect light binary sensor."""
+
+    _attr_has_entity_name = True
+    entity_description: ProtectBinarySensorEntityDescription
+
+    def __init__(
+        self,
+        coordinator: ProtectDataUpdateCoordinator,
+        light_id: str,
+        light: ProtectLight,
+        description: ProtectBinarySensorEntityDescription,
+    ) -> None:
+        """Initialize the binary sensor.
+
+        Args:
+            coordinator: The data update coordinator
+            light_id: Light ID
+            light: Light data
+            description: Entity description
+        """
+        super().__init__(coordinator)
+        self.entity_description = description
+        self.light_id = light_id
+        self._attr_unique_id = f"{light_id}_{description.key}"
+        self._attr_device_info = light.device_info
+
+    @property
+    def light(self) -> ProtectLight:
+        """Return the light object."""
+        return self.coordinator.lights[self.light_id]
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.light_id in self.coordinator.lights
+            and self.light.is_connected
+        )
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if the binary sensor is on."""
+        if self.entity_description.key == "dark":
+            return self.light.is_dark
+        elif self.entity_description.key == "motion":
+            return self.light.is_pir_motion_detected
+
+        return False
