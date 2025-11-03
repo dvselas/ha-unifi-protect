@@ -59,6 +59,14 @@ NVR_SENSORS: tuple[ProtectSensorEntityDescription, ...] = (
     ),
 )
 
+CAMERA_SENSORS: tuple[ProtectSensorEntityDescription, ...] = (
+    ProtectSensorEntityDescription(
+        key="last_ring",
+        name="Last Ring",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+)
+
 CAMERA_DIAGNOSTIC_SENSORS: tuple[ProtectSensorEntityDescription, ...] = (
     ProtectSensorEntityDescription(
         key="uptime",
@@ -147,6 +155,22 @@ async def async_setup_entry(
         # Add battery level sensor
         if sensor.battery_level is not None:
             entities.append(ProtectBatterySensor(coordinator, sensor_id, sensor))
+
+    # Add camera sensors
+    for camera_id, camera in coordinator.cameras.items():
+        for description in CAMERA_SENSORS:
+            # Only add last_ring sensor for doorbell cameras
+            if description.key == "last_ring" and camera.type != "doorbell":
+                continue
+
+            entities.append(
+                ProtectCameraSensorEntity(
+                    coordinator,
+                    camera_id,
+                    camera,
+                    description,
+                )
+            )
 
     # Add camera diagnostic sensors
     for camera_id, camera in coordinator.cameras.items():
@@ -241,6 +265,66 @@ class ProtectNVRSensorEntity(
             attrs["doorbell_custom_messages"] = self.nvr.doorbell_settings.get("customMessages", [])
 
         return attrs
+
+
+class ProtectCameraSensorEntity(
+    CoordinatorEntity[ProtectDataUpdateCoordinator], SensorEntity
+):
+    """Representation of a UniFi Protect camera sensor."""
+
+    _attr_has_entity_name = True
+    entity_description: ProtectSensorEntityDescription
+
+    def __init__(
+        self,
+        coordinator: ProtectDataUpdateCoordinator,
+        camera_id: str,
+        camera: ProtectCamera,
+        description: ProtectSensorEntityDescription,
+    ) -> None:
+        """Initialize the sensor.
+
+        Args:
+            coordinator: The data update coordinator
+            camera_id: Camera ID
+            camera: Camera data
+            description: Entity description
+        """
+        super().__init__(coordinator)
+        self.entity_description = description
+        self.camera_id = camera_id
+        self._attr_unique_id = f"{camera_id}_{description.key}"
+        self._attr_device_info = camera.device_info
+
+    @property
+    def camera(self) -> ProtectCamera:
+        """Return the camera object."""
+        return self.coordinator.cameras[self.camera_id]
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.camera_id in self.coordinator.cameras
+            and self.camera.is_connected
+        )
+
+    @property
+    def native_value(self) -> Any:
+        """Return the state of the sensor."""
+        if not self.available:
+            return None
+
+        if self.entity_description.key == "last_ring":
+            # Return datetime for timestamp sensor
+            if self.camera.last_ring:
+                from datetime import datetime, timezone
+                # Convert milliseconds timestamp to datetime
+                return datetime.fromtimestamp(self.camera.last_ring / 1000, tz=timezone.utc)
+            return None
+
+        return None
 
 
 class ProtectCameraDiagnosticSensor(
