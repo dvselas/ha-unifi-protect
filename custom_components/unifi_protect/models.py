@@ -1,7 +1,7 @@
 """Data models for UniFi Protect."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .const import DOMAIN
@@ -47,10 +47,10 @@ class ProtectCamera:
     zoom_position: int | None  # Zoom position (0-100)
     # Stats
     stats: dict[str, Any]  # Network and storage stats
-    # Runtime detection states (updated by WebSocket events)
-    _runtime_detected_objects: list[str] = None  # Currently detected smart object types
-    _last_smart_detect_event: int | None = None  # Timestamp of last smart detection
     raw_data: dict[str, Any]
+    # Runtime detection states (updated by WebSocket events)
+    _runtime_detected_objects: list[str] = field(default_factory=list)  # Currently detected smart object types
+    _last_smart_detect_event: int | None = None  # Timestamp of last smart detection
 
     @classmethod
     def from_api_data(cls, data: dict[str, Any]) -> ProtectCamera:
@@ -108,8 +108,6 @@ class ProtectCamera:
             wdr_value=data.get("wdrValue"),
             zoom_position=data.get("zoomPosition"),
             stats=data.get("stats", {}),
-            _runtime_detected_objects=[],
-            _last_smart_detect_event=None,
             raw_data=data,
         )
 
