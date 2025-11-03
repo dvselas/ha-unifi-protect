@@ -298,23 +298,23 @@ class UniFiProtectAPI:
         return data
 
     async def get_nvr_bootstrap(self) -> dict[str, Any]:
-        """Get full NVR data from bootstrap endpoint (includes storage stats).
+        """DEPRECATED: Get full NVR data from bootstrap endpoint.
 
-        Note: This endpoint may not be available in all UniFi Protect versions.
-        The Integration API v1 doesn't provide a direct bootstrap endpoint,
-        so this attempts to use the legacy API endpoint which may fail.
+        This method is deprecated and should not be used. The legacy
+        /proxy/protect/api/bootstrap endpoint is not reliable and
+        returns 500 errors on many UniFi Protect versions.
+
+        Storage stats are not available in Integration API v1.
 
         Returns:
             Full bootstrap data with NVR including storageStats
 
         Raises:
-            AuthenticationError: If authentication fails
-            ConnectionError: If connection fails
-            ProtectAPIError: If endpoint not available
+            ProtectAPIError: Endpoint not available or returns errors
         """
-        # Try legacy bootstrap endpoint (may not be available)
-        # This is only used for optional storage stats
-        return await self.get("/proxy/protect/api/bootstrap")
+        # Legacy bootstrap endpoint - returns 500 errors on many systems
+        # DO NOT USE - kept for backwards compatibility only
+        raise ProtectAPIError("Bootstrap endpoint is deprecated and not available")
 
     # Device asset file management methods
 
@@ -726,21 +726,10 @@ class UniFiProtectAPI:
             except Exception as err:
                 _LOGGER.warning("Error fetching liveviews data: %s", err)
 
-            # Try to fetch storage stats from bootstrap endpoint
-            # Integration API v1 doesn't include storage in NVR endpoint
-            # This is optional and failure is not critical
-            try:
-                full_bootstrap = await self.get_nvr_bootstrap()
-                if full_bootstrap and "nvr" in full_bootstrap:
-                    nvr_with_storage = full_bootstrap["nvr"]
-                    # Merge storage stats into our nvr_data
-                    if "storageStats" in nvr_with_storage:
-                        nvr_data["storageStats"] = nvr_with_storage["storageStats"]
-                        _LOGGER.debug("Added storage stats to NVR data")
-                await asyncio.sleep(0.2)
-            except Exception as err:
-                # Storage stats are optional - just debug log if not available
-                _LOGGER.debug("Storage stats not available (this is normal for some Protect versions): %s", err)
+            # Note: Storage stats are not available in Integration API v1
+            # The legacy /proxy/protect/api/bootstrap endpoint is not reliable
+            # and may return 500 errors. Storage stats sensors will show unavailable.
+            _LOGGER.debug("Storage stats not available in Integration API v1")
 
             # Combine into bootstrap structure
             bootstrap_data = {
