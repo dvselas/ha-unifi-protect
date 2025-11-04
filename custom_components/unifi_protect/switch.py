@@ -79,9 +79,17 @@ async def async_setup_entry(
 
     entities: list[ProtectSwitchEntity] = []
 
-    # Add switches for each camera
+    # Add switches for each camera based on what they support
     for camera_id, camera in coordinator.cameras.items():
         for description in CAMERA_SWITCHES:
+            # Skip LED status switch if camera doesn't have LED status indicator
+            if description.key == "status_led" and not camera.has_led_status:
+                continue
+
+            # Skip high FPS mode switch if camera doesn't support it
+            if description.key == "high_fps_mode" and not camera.supports_video_mode("highFps"):
+                continue
+
             entities.append(
                 ProtectSwitchEntity(
                     coordinator,

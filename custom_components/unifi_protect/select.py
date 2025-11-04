@@ -64,11 +64,11 @@ async def async_setup_entry(
     # Add video mode and HDR mode selects for each camera
     for camera_id, camera in coordinator.cameras.items():
         # Only add video mode if camera supports multiple modes
-        if camera.feature_flags.get("videoModes") and len(camera.feature_flags["videoModes"]) > 1:
+        if len(camera.supported_video_modes) > 1:
             entities.append(CameraVideoModeSelect(coordinator, camera_id, camera))
 
         # Only add HDR mode if camera supports HDR
-        if camera.feature_flags.get("hasHdr"):
+        if camera.supports_hdr:
             entities.append(CameraHDRModeSelect(coordinator, camera_id, camera))
 
         # Add LCD message select for doorbell cameras
@@ -98,7 +98,7 @@ class CameraVideoModeSelect(CoordinatorEntity[ProtectDataUpdateCoordinator], Sel
         self._attr_icon = "mdi:video-box"
 
         # Use camera's supported video modes if available
-        supported_modes = camera.feature_flags.get("videoModes", VIDEO_MODE_OPTIONS)
+        supported_modes = camera.supported_video_modes if camera.supported_video_modes else VIDEO_MODE_OPTIONS
         self._attr_options = [VIDEO_MODE_LABELS.get(mode, mode) for mode in supported_modes]
         self._supported_modes = supported_modes
 

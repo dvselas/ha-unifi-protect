@@ -29,7 +29,7 @@ async def async_setup_entry(
 
     # Add microphone volume control for each camera with a microphone
     for camera_id, camera in coordinator.cameras.items():
-        if camera.feature_flags.get("hasMic") and camera.is_mic_enabled:
+        if camera.has_microphone and camera.is_mic_enabled:
             entities.append(CameraMicVolumeNumber(coordinator, camera_id, camera))
 
         # Add WDR level control for cameras that support it

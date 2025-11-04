@@ -377,6 +377,70 @@ class ProtectCamera:
         # Or might use volume = 0 to indicate muted
         return self.speaker_volume == 0
 
+    # Feature flag helper methods
+
+    @property
+    def supports_full_hd_snapshot(self) -> bool:
+        """Return if camera supports full HD or higher resolution snapshots."""
+        return self.feature_flags.get("supportFullHdSnapshot", False)
+
+    @property
+    def supports_hdr(self) -> bool:
+        """Return if camera supports High Dynamic Range mode."""
+        return self.feature_flags.get("hasHdr", False)
+
+    @property
+    def supported_smart_detect_types(self) -> list[str]:
+        """Return list of supported smart detection object types."""
+        return self.feature_flags.get("smartDetectTypes", [])
+
+    @property
+    def supported_smart_detect_audio_types(self) -> list[str]:
+        """Return list of supported smart detection audio types."""
+        return self.feature_flags.get("smartDetectAudioTypes", [])
+
+    @property
+    def supported_video_modes(self) -> list[str]:
+        """Return list of supported video modes by the camera."""
+        return self.feature_flags.get("videoModes", [])
+
+    @property
+    def has_microphone(self) -> bool:
+        """Return if camera has a microphone."""
+        return self.feature_flags.get("hasMic", False)
+
+    @property
+    def has_led_status(self) -> bool:
+        """Return if camera has LED status indicator."""
+        return self.feature_flags.get("hasLedStatus", False)
+
+    @property
+    def has_speaker(self) -> bool:
+        """Return if camera has a speaker to support talkback."""
+        return self.feature_flags.get("hasSpeaker", False)
+
+    def supports_smart_detect_type(self, detect_type: str) -> bool:
+        """Check if camera supports specific smart detection type.
+
+        Args:
+            detect_type: Detection type (person, vehicle, package, licensePlate, face, animal)
+
+        Returns:
+            True if camera supports this detection type
+        """
+        return detect_type in self.supported_smart_detect_types
+
+    def supports_video_mode(self, mode: str) -> bool:
+        """Check if camera supports specific video mode.
+
+        Args:
+            mode: Video mode (default, highFps, homekit, sport, slowShutter, lprReflex, lprNoneReflex)
+
+        Returns:
+            True if camera supports this video mode
+        """
+        return mode in self.supported_video_modes
+
 
 @dataclass
 class ProtectSensor:

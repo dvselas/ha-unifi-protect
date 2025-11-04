@@ -140,17 +140,42 @@ async def async_setup_entry(
                 )
             )
 
-        # Add smart detection sensors if camera supports them
+        # Add smart detection sensors based on what the camera actually supports
         if camera.has_smart_detect:
-            for description in SMART_DETECT_SENSORS:
+            # Create a mapping of detection types to sensor descriptions
+            detection_type_map = {
+                "person": next((d for d in SMART_DETECT_SENSORS if d.key == "person"), None),
+                "vehicle": next((d for d in SMART_DETECT_SENSORS if d.key == "vehicle"), None),
+                "package": next((d for d in SMART_DETECT_SENSORS if d.key == "package"), None),
+                "animal": next((d for d in SMART_DETECT_SENSORS if d.key == "animal"), None),
+                "licensePlate": next((d for d in SMART_DETECT_SENSORS if d.key == "license_plate"), None),
+                "face": next((d for d in SMART_DETECT_SENSORS if d.key == "face"), None),
+            }
+
+            # Always add the general smart detection sensor if any smart detect is supported
+            smart_obj_desc = next((d for d in SMART_DETECT_SENSORS if d.key == "smart_obj"), None)
+            if smart_obj_desc:
                 entities.append(
                     ProtectBinarySensorEntity(
                         coordinator,
                         camera_id,
                         camera,
-                        description,
+                        smart_obj_desc,
                     )
                 )
+
+            # Add specific detection type sensors only if the camera supports them
+            for detect_type in camera.supported_smart_detect_types:
+                description = detection_type_map.get(detect_type)
+                if description:
+                    entities.append(
+                        ProtectBinarySensorEntity(
+                            coordinator,
+                            camera_id,
+                            camera,
+                            description,
+                        )
+                    )
 
     # Add binary sensors for each sensor
     for sensor_id, sensor in coordinator.sensors.items():
