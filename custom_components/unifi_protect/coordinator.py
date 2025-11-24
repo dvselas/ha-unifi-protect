@@ -243,6 +243,9 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning("Error fetching chimes: %s", err)
                 # Don't fail the entire update if chimes fail
 
+            # Update doorbell camera flags based on chime associations
+            self._update_doorbell_cameras()
+
             _LOGGER.debug(
                 "Update completed: %d cameras, %d sensors, %d lights, %d viewers, %d liveviews, %d chimes",
                 len(self.cameras),
@@ -298,6 +301,27 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Close API connection
         await self.api.close()
+
+    def _update_doorbell_cameras(self) -> None:
+        """Update doorbell camera flags based on chime associations.
+
+        Marks cameras as doorbells if they appear in any chime's cameraIds list.
+        This is the most reliable method to identify doorbell cameras.
+        """
+        # First, reset all camera doorbell flags
+        for camera in self.cameras.values():
+            camera._is_doorbell_camera = False
+
+        # Then mark cameras that are paired with chimes
+        for chime in self.chimes.values():
+            for camera_id in chime.camera_ids:
+                if camera_id in self.cameras:
+                    self.cameras[camera_id]._is_doorbell_camera = True
+                    _LOGGER.debug(
+                        "Camera %s (%s) identified as doorbell via chime pairing",
+                        self.cameras[camera_id].name,
+                        camera_id
+                    )
 
     async def _create_camera_streams(self) -> None:
         """Pre-cache RTSPS stream URLs for all cameras.

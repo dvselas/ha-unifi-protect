@@ -52,6 +52,8 @@ class ProtectCamera:
     # Runtime detection states (updated by WebSocket events)
     _runtime_detected_objects: list[str] = field(default_factory=list)  # Currently detected smart object types
     _last_smart_detect_event: int | None = None  # Timestamp of last smart detection
+    # Doorbell status (updated by coordinator based on chime associations)
+    _is_doorbell_camera: bool = False  # True if camera is paired with a chime
 
     @classmethod
     def from_api_data(cls, data: dict[str, Any]) -> ProtectCamera:
@@ -292,13 +294,20 @@ class ProtectCamera:
         """Return if camera is a doorbell.
 
         Checks multiple indicators:
+        - Camera is paired with a chime (most reliable method)
         - type field equals "doorbell"
         - model name contains "doorbell"
         - feature flags indicate doorbell capability
+        - LCD message is available (doorbell-specific feature)
 
         Returns:
             True if camera is a doorbell
         """
+        # Check if camera is paired with a chime (set by coordinator)
+        # This is the most reliable method as it uses the /chimes endpoint
+        if self._is_doorbell_camera:
+            return True
+
         # Check type field
         if self.type and "doorbell" in self.type.lower():
             return True
