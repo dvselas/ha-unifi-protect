@@ -44,12 +44,7 @@ CAMERA_BINARY_SENSORS: tuple[ProtectBinarySensorEntityDescription, ...] = (
         name="Online",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
     ),
-    ProtectBinarySensorEntityDescription(
-        key="dark",
-        name="Light Detected",
-        device_class=BinarySensorDeviceClass.LIGHT,
-        icon="mdi:brightness-5",
-    ),
+    # Note: isDark sensor removed - isDark field only available in lights API, not cameras API
 )
 
 # Smart detection sensors (only for cameras with smart detect capability)
@@ -278,10 +273,6 @@ class ProtectBinarySensorEntity(
             return False
         elif self.entity_description.key == "online":
             return self.camera.is_connected
-        elif self.entity_description.key == "dark":
-            # Invert: isDark=true means no light, so sensor should be OFF (False)
-            # isDark=false means there is light, so sensor should be ON (True)
-            return not self.camera.is_dark
         # Smart detection sensors
         elif self.entity_description.key == "smart_obj":
             return self.camera.is_smart_detected
