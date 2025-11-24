@@ -722,6 +722,6 @@ class ProtectChimeLastRingSensor(
         if self.chime.last_ring is None:
             return None
 
-        # Convert Unix timestamp (seconds) to datetime
+        # Convert Unix timestamp in milliseconds to datetime
         from datetime import datetime, timezone
-        return datetime.fromtimestamp(self.chime.last_ring, tz=timezone.utc)
+        return datetime.fromtimestamp(self.chime.last_ring / 1000, tz=timezone.utc)
