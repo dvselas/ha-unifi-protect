@@ -293,12 +293,10 @@ class ProtectCamera:
     def is_doorbell(self) -> bool:
         """Return if camera is a doorbell.
 
-        Checks multiple indicators:
-        - Camera is paired with a chime (most reliable method)
-        - type field equals "doorbell"
-        - model name contains "doorbell"
-        - feature flags indicate doorbell capability
-        - LCD message is available (doorbell-specific feature)
+        Checks multiple indicators with priority:
+        1. Camera is paired with a chime (most reliable - uses /chimes API)
+        2. Type field explicitly equals "doorbell"
+        3. Model name explicitly contains "doorbell" (conservative check)
 
         Returns:
             True if camera is a doorbell
@@ -308,21 +306,18 @@ class ProtectCamera:
         if self._is_doorbell_camera:
             return True
 
-        # Check type field
-        if self.type and "doorbell" in self.type.lower():
+        # Check type field - must explicitly be "doorbell"
+        if self.type and self.type.lower() == "doorbell":
             return True
 
-        # Check model name
+        # Check model name - must explicitly contain "doorbell"
+        # This catches models like "UVC G4 Doorbell" but not regular cameras
         if self.model and "doorbell" in self.model.lower():
             return True
 
-        # Check feature flags
-        if self.feature_flags.get("hasChime") or self.feature_flags.get("canRing"):
-            return True
-
-        # Check if LCD message is available (doorbell-specific feature)
-        if self.lcd_message is not None:
-            return True
+        # Note: Removed hasChime/canRing feature flag checks as they can give
+        # false positives. The chime pairing check above is more reliable.
+        # Note: Removed LCD message check as it may not be reliable for detection.
 
         return False
 
