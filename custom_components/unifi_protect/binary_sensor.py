@@ -46,9 +46,9 @@ CAMERA_BINARY_SENSORS: tuple[ProtectBinarySensorEntityDescription, ...] = (
     ),
     ProtectBinarySensorEntityDescription(
         key="dark",
-        name="Is Dark",
+        name="Light Detected",
         device_class=BinarySensorDeviceClass.LIGHT,
-        icon="mdi:brightness-4",
+        icon="mdi:brightness-5",
     ),
 )
 
@@ -101,9 +101,9 @@ SMART_DETECT_SENSORS: tuple[ProtectBinarySensorEntityDescription, ...] = (
 LIGHT_BINARY_SENSORS: tuple[ProtectBinarySensorEntityDescription, ...] = (
     ProtectBinarySensorEntityDescription(
         key="dark",
-        name="Is Dark",
+        name="Light Detected",
         device_class=BinarySensorDeviceClass.LIGHT,
-        icon="mdi:brightness-4",
+        icon="mdi:brightness-5",
     ),
     ProtectBinarySensorEntityDescription(
         key="motion",
@@ -279,7 +279,9 @@ class ProtectBinarySensorEntity(
         elif self.entity_description.key == "online":
             return self.camera.is_connected
         elif self.entity_description.key == "dark":
-            return self.camera.is_dark
+            # Invert: isDark=true means no light, so sensor should be OFF (False)
+            # isDark=false means there is light, so sensor should be ON (True)
+            return not self.camera.is_dark
         # Smart detection sensors
         elif self.entity_description.key == "smart_obj":
             return self.camera.is_smart_detected
@@ -669,7 +671,9 @@ class ProtectLightBinarySensorEntity(
     def is_on(self) -> bool:
         """Return true if the binary sensor is on."""
         if self.entity_description.key == "dark":
-            return self.light.is_dark
+            # Invert: isDark=true means no light, so sensor should be OFF (False)
+            # isDark=false means there is light, so sensor should be ON (True)
+            return not self.light.is_dark
         elif self.entity_description.key == "motion":
             return self.light.is_pir_motion_detected_recently
 
