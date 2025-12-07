@@ -371,21 +371,26 @@ class ProtectCameraDiagnosticSensor(
         # Add uptime breakdown in days, hours, minutes
         if self.entity_description.key == "uptime":
             uptime_seconds = self.native_value
-            if uptime_seconds:
-                days = uptime_seconds // 86400
-                hours = (uptime_seconds % 86400) // 3600
-                minutes = (uptime_seconds % 3600) // 60
+            if uptime_seconds is not None and uptime_seconds >= 0:
+                days = int(uptime_seconds // 86400)
+                hours = int((uptime_seconds % 86400) // 3600)
+                minutes = int((uptime_seconds % 3600) // 60)
+                seconds = int(uptime_seconds % 60)
 
+                # Format based on uptime duration
                 if days > 0:
                     attrs["formatted"] = f"{days}d {hours}h {minutes}m"
                 elif hours > 0:
                     attrs["formatted"] = f"{hours}h {minutes}m"
-                else:
+                elif uptime_seconds >= 300:  # 5 minutes or more, show minutes
                     attrs["formatted"] = f"{minutes}m"
+                else:  # Less than 5 minutes, show seconds
+                    attrs["formatted"] = f"{seconds}s"
 
                 attrs["days"] = days
                 attrs["hours"] = hours
                 attrs["minutes"] = minutes
+                attrs["seconds"] = seconds
 
         # Add WiFi details
         if self.entity_description.key == "wifi_signal":
