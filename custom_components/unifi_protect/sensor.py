@@ -69,14 +69,6 @@ CAMERA_SENSORS: tuple[ProtectSensorEntityDescription, ...] = (
 
 CAMERA_DIAGNOSTIC_SENSORS: tuple[ProtectSensorEntityDescription, ...] = (
     ProtectSensorEntityDescription(
-        key="uptime",
-        name="Uptime",
-        device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement="s",
-        state_class=SensorStateClass.TOTAL_INCREASING,
-        entity_registry_enabled_default=False,
-    ),
-    ProtectSensorEntityDescription(
         key="voltage",
         name="Voltage",
         device_class=SensorDeviceClass.VOLTAGE,
@@ -84,7 +76,7 @@ CAMERA_DIAGNOSTIC_SENSORS: tuple[ProtectSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
     ),
-    # Note: rx_bitrate, tx_bitrate, and storage_used sensors removed
+    # Note: uptime, rx_bitrate, tx_bitrate, and storage_used sensors removed
     # These fields are not available in the camera API response
     ProtectSensorEntityDescription(
         key="wifi_signal",
@@ -352,10 +344,7 @@ class ProtectCameraDiagnosticSensor(
         if not self.available:
             return None
 
-        if self.entity_description.key == "uptime":
-            # Use client-side uptime calculation since API doesn't reliably provide it
-            return self.camera.client_uptime
-        elif self.entity_description.key == "voltage":
+        if self.entity_description.key == "voltage":
             return self.camera.voltage
         elif self.entity_description.key == "wifi_signal":
             wifi_state = self.camera.stats.get("wifiConnectionState", {})
@@ -367,30 +356,6 @@ class ProtectCameraDiagnosticSensor(
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
         attrs = {}
-
-        # Add uptime breakdown in days, hours, minutes
-        if self.entity_description.key == "uptime":
-            uptime_seconds = self.native_value
-            if uptime_seconds is not None and uptime_seconds >= 0:
-                days = int(uptime_seconds // 86400)
-                hours = int((uptime_seconds % 86400) // 3600)
-                minutes = int((uptime_seconds % 3600) // 60)
-                seconds = int(uptime_seconds % 60)
-
-                # Format based on uptime duration
-                if days > 0:
-                    attrs["formatted"] = f"{days}d {hours}h {minutes}m"
-                elif hours > 0:
-                    attrs["formatted"] = f"{hours}h {minutes}m"
-                elif uptime_seconds >= 300:  # 5 minutes or more, show minutes
-                    attrs["formatted"] = f"{minutes}m"
-                else:  # Less than 5 minutes, show seconds
-                    attrs["formatted"] = f"{seconds}s"
-
-                attrs["days"] = days
-                attrs["hours"] = hours
-                attrs["minutes"] = minutes
-                attrs["seconds"] = seconds
 
         # Add WiFi details
         if self.entity_description.key == "wifi_signal":
