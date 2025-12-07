@@ -368,6 +368,25 @@ class ProtectCameraDiagnosticSensor(
         """Return extra state attributes."""
         attrs = {}
 
+        # Add uptime breakdown in days, hours, minutes
+        if self.entity_description.key == "uptime":
+            uptime_seconds = self.native_value
+            if uptime_seconds:
+                days = uptime_seconds // 86400
+                hours = (uptime_seconds % 86400) // 3600
+                minutes = (uptime_seconds % 3600) // 60
+
+                if days > 0:
+                    attrs["formatted"] = f"{days}d {hours}h {minutes}m"
+                elif hours > 0:
+                    attrs["formatted"] = f"{hours}h {minutes}m"
+                else:
+                    attrs["formatted"] = f"{minutes}m"
+
+                attrs["days"] = days
+                attrs["hours"] = hours
+                attrs["minutes"] = minutes
+
         # Add WiFi details
         if self.entity_description.key == "wifi_signal":
             wifi_state = self.camera.stats.get("wifiConnectionState", {})

@@ -140,6 +140,15 @@ class ProtectDoorbellEventEntity(
             self._last_ring_time = ring_time
             self._last_event_id = event_id
 
+            # Store the ring timestamp in the camera model for the sensor
+            if self.camera_id in self.coordinator.cameras:
+                self.coordinator.cameras[self.camera_id].last_ring = ring_time
+                _LOGGER.debug(
+                    "Updated last_ring for camera %s to %s",
+                    self.camera.name,
+                    ring_time
+                )
+
             # Trigger the event with event_type and event attributes
             self._trigger_event(
                 "ring",
