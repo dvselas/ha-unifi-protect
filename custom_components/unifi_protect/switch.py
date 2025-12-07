@@ -32,25 +32,21 @@ CAMERA_SWITCHES: tuple[ProtectSwitchEntityDescription, ...] = (
         key="status_led",
         name="Status LED",
         icon="mdi:led-on",
-        entity_registry_enabled_default=False,
     ),
     ProtectSwitchEntityDescription(
         key="osd_name",
         name="OSD Name",
         icon="mdi:label",
-        entity_registry_enabled_default=False,
     ),
     ProtectSwitchEntityDescription(
         key="osd_date",
         name="OSD Date",
         icon="mdi:calendar",
-        entity_registry_enabled_default=False,
     ),
     ProtectSwitchEntityDescription(
         key="osd_logo",
         name="OSD Logo",
         icon="mdi:watermark",
-        entity_registry_enabled_default=False,
     ),
 )
 

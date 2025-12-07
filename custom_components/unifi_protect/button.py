@@ -29,7 +29,6 @@ CAMERA_BUTTONS: tuple[ProtectButtonEntityDescription, ...] = (
         key="reboot",
         name="Reboot",
         icon="mdi:restart",
-        entity_registry_enabled_default=False,  # Disabled by default
     ),
 )
 
@@ -43,7 +42,6 @@ CHIME_BUTTONS: tuple[ProtectButtonEntityDescription, ...] = (
         key="reboot",
         name="Reboot",
         icon="mdi:restart",
-        entity_registry_enabled_default=False,  # Disabled by default
     ),
 )
 
@@ -52,7 +50,6 @@ LIGHT_BUTTONS: tuple[ProtectButtonEntityDescription, ...] = (
         key="reboot",
         name="Reboot",
         icon="mdi:restart",
-        entity_registry_enabled_default=False,  # Disabled by default
     ),
 )
 
@@ -61,7 +58,6 @@ VIEWER_BUTTONS: tuple[ProtectButtonEntityDescription, ...] = (
         key="reboot",
         name="Reboot",
         icon="mdi:restart",
-        entity_registry_enabled_default=False,  # Disabled by default
     ),
 )
 

@@ -74,7 +74,6 @@ CAMERA_DIAGNOSTIC_SENSORS: tuple[ProtectSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.VOLTAGE,
         native_unit_of_measurement="V",
         state_class=SensorStateClass.MEASUREMENT,
-        entity_registry_enabled_default=False,
     ),
     # Note: uptime, rx_bitrate, tx_bitrate, and storage_used sensors removed
     # These fields are not available in the camera API response
@@ -83,7 +82,6 @@ CAMERA_DIAGNOSTIC_SENSORS: tuple[ProtectSensorEntityDescription, ...] = (
         name="WiFi Signal",
         native_unit_of_measurement="dBm",
         state_class=SensorStateClass.MEASUREMENT,
-        entity_registry_enabled_default=False,
     ),
 )
 
