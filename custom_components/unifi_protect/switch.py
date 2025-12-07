@@ -26,16 +26,8 @@ class ProtectSwitchEntityDescription(SwitchEntityDescription):
 
 
 CAMERA_SWITCHES: tuple[ProtectSwitchEntityDescription, ...] = (
-    ProtectSwitchEntityDescription(
-        key="privacy_mode",
-        name="Privacy Mode",
-        icon="mdi:eye-off",
-    ),
-    ProtectSwitchEntityDescription(
-        key="recording",
-        name="Recording",
-        icon="mdi:record-rec",
-    ),
+    # Note: Privacy Mode, Recording Mode, and Video Mode switches removed
+    # These settings are not reliably supported by the Integration API v1
     ProtectSwitchEntityDescription(
         key="status_led",
         name="Status LED",
@@ -60,12 +52,6 @@ CAMERA_SWITCHES: tuple[ProtectSwitchEntityDescription, ...] = (
         icon="mdi:watermark",
         entity_registry_enabled_default=False,
     ),
-    ProtectSwitchEntityDescription(
-        key="high_fps_mode",
-        name="High FPS Mode",
-        icon="mdi:video-high-definition",
-        entity_registry_enabled_default=False,
-    ),
 )
 
 
@@ -84,10 +70,6 @@ async def async_setup_entry(
         for description in CAMERA_SWITCHES:
             # Skip LED status switch if camera doesn't have LED status indicator
             if description.key == "status_led" and not camera.has_led_status:
-                continue
-
-            # Skip high FPS mode switch if camera doesn't support it
-            if description.key == "high_fps_mode" and not camera.supports_video_mode("highFps"):
                 continue
 
             entities.append(
@@ -158,11 +140,7 @@ class ProtectSwitchEntity(
     @property
     def is_on(self) -> bool:
         """Return true if the switch is on."""
-        if self.entity_description.key == "privacy_mode":
-            return self.camera.privacy_mode
-        elif self.entity_description.key == "recording":
-            return self.camera.recording_mode != "never"
-        elif self.entity_description.key == "status_led":
+        if self.entity_description.key == "status_led":
             return self.camera.led_settings.get("isEnabled", False) if self.camera.led_settings else False
         elif self.entity_description.key == "osd_name":
             return self.camera.osd_settings.get("isNameEnabled", False) if self.camera.osd_settings else False
@@ -170,21 +148,13 @@ class ProtectSwitchEntity(
             return self.camera.osd_settings.get("isDateEnabled", False) if self.camera.osd_settings else False
         elif self.entity_description.key == "osd_logo":
             return self.camera.osd_settings.get("isLogoEnabled", False) if self.camera.osd_settings else False
-        elif self.entity_description.key == "high_fps_mode":
-            return self.camera.video_mode == "highFps"
 
         return False
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
         try:
-            if self.entity_description.key == "privacy_mode":
-                await self.coordinator.api.set_privacy_mode(self.camera_id, True)
-            elif self.entity_description.key == "recording":
-                await self.coordinator.api.set_recording_mode(
-                    self.camera_id, "always"
-                )
-            elif self.entity_description.key == "status_led":
+            if self.entity_description.key == "status_led":
                 led_settings = self.camera.led_settings.copy() if self.camera.led_settings else {}
                 led_settings["isEnabled"] = True
                 await self.coordinator.api.update_camera(
@@ -208,10 +178,6 @@ class ProtectSwitchEntity(
                 await self.coordinator.api.update_camera(
                     self.camera_id, osd_settings=osd_settings
                 )
-            elif self.entity_description.key == "high_fps_mode":
-                await self.coordinator.api.update_camera(
-                    self.camera_id, video_mode="highFps"
-                )
 
             # Request coordinator update
             await self.coordinator.async_request_refresh()
@@ -222,13 +188,7 @@ class ProtectSwitchEntity(
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
         try:
-            if self.entity_description.key == "privacy_mode":
-                await self.coordinator.api.set_privacy_mode(self.camera_id, False)
-            elif self.entity_description.key == "recording":
-                await self.coordinator.api.set_recording_mode(
-                    self.camera_id, "never"
-                )
-            elif self.entity_description.key == "status_led":
+            if self.entity_description.key == "status_led":
                 led_settings = self.camera.led_settings.copy() if self.camera.led_settings else {}
                 led_settings["isEnabled"] = False
                 await self.coordinator.api.update_camera(
@@ -251,10 +211,6 @@ class ProtectSwitchEntity(
                 osd_settings["isLogoEnabled"] = False
                 await self.coordinator.api.update_camera(
                     self.camera_id, osd_settings=osd_settings
-                )
-            elif self.entity_description.key == "high_fps_mode":
-                await self.coordinator.api.update_camera(
-                    self.camera_id, video_mode="default"
                 )
 
             # Request coordinator update
