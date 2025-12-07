@@ -285,21 +285,19 @@ class ProtectCameraSensorEntity(
         return (
             self.coordinator.last_update_success
             and self.camera_id in self.coordinator.cameras
-            and self.camera.is_connected
         )
 
     @property
     def native_value(self) -> Any:
         """Return the state of the sensor."""
-        if not self.available:
-            return None
-
         if self.entity_description.key == "last_ring":
             # Return datetime for timestamp sensor
+            # Check if last_ring exists and is not None/0
             if self.camera.last_ring:
                 from datetime import datetime, timezone
                 # Convert milliseconds timestamp to datetime
                 return datetime.fromtimestamp(self.camera.last_ring / 1000, tz=timezone.utc)
+            # Return None if never rung (will show as "Unknown" in HA)
             return None
 
         return None
