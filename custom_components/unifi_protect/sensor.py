@@ -355,7 +355,8 @@ class ProtectCameraDiagnosticSensor(
             return None
 
         if self.entity_description.key == "uptime":
-            return self.camera.uptime
+            # Use client-side uptime calculation since API doesn't reliably provide it
+            return self.camera.client_uptime
         elif self.entity_description.key == "voltage":
             return self.camera.voltage
         elif self.entity_description.key == "wifi_signal":

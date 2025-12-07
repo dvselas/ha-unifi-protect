@@ -96,11 +96,37 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                 current_camera_ids.add(camera_id)
 
                 if camera_id in self.cameras:
+                    # Track connection state changes for uptime calculation
+                    old_connected = self.cameras[camera_id].is_connected
+
                     # Update existing camera
                     self.cameras[camera_id].update(camera_data)
+
+                    # If camera just connected, record the timestamp
+                    new_connected = self.cameras[camera_id].is_connected
+                    if not old_connected and new_connected:
+                        import time
+                        self.cameras[camera_id]._connected_since = time.time()
+                        _LOGGER.debug(
+                            "Camera %s connected, starting uptime tracking",
+                            self.cameras[camera_id].name
+                        )
+                    elif old_connected and not new_connected:
+                        # Camera disconnected, clear timestamp
+                        self.cameras[camera_id]._connected_since = None
+                        _LOGGER.debug(
+                            "Camera %s disconnected, clearing uptime tracking",
+                            self.cameras[camera_id].name
+                        )
                 else:
                     # Add new camera
                     self.cameras[camera_id] = ProtectCamera.from_api_data(camera_data)
+
+                    # If new camera is already connected, start tracking uptime
+                    if self.cameras[camera_id].is_connected:
+                        import time
+                        self.cameras[camera_id]._connected_since = time.time()
+
                     _LOGGER.info(
                         "Discovered new camera: %s (isConnected=%s, state=%s, connectionState=%s)",
                         camera_data.get("name"),

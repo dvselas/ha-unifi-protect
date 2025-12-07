@@ -54,6 +54,8 @@ class ProtectCamera:
     _last_smart_detect_event: int | None = None  # Timestamp of last smart detection
     # Doorbell status (updated by coordinator based on chime associations)
     _is_doorbell_camera: bool = False  # True if camera is paired with a chime
+    # Connection tracking (for client-side uptime calculation)
+    _connected_since: float | None = None  # Timestamp when camera last connected (time.time())
 
     @classmethod
     def from_api_data(cls, data: dict[str, Any]) -> ProtectCamera:
@@ -444,6 +446,23 @@ class ProtectCamera:
             True if camera supports this video mode
         """
         return mode in self.supported_video_modes
+
+    @property
+    def client_uptime(self) -> int | None:
+        """Calculate uptime in seconds based on when camera connected.
+
+        This is a client-side calculation since the API doesn't reliably
+        provide uptime. Returns None if camera is not connected or we
+        haven't tracked the connection time yet.
+
+        Returns:
+            Uptime in seconds, or None if unavailable
+        """
+        if not self.is_connected or self._connected_since is None:
+            return None
+
+        import time
+        return int(time.time() - self._connected_since)
 
 
 @dataclass
