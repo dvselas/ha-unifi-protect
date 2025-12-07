@@ -63,7 +63,7 @@ CAMERA_SENSORS: tuple[ProtectSensorEntityDescription, ...] = (
     ProtectSensorEntityDescription(
         key="last_ring",
         name="Last Ring",
-        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:bell-ring",
     ),
 )
 
@@ -281,12 +281,14 @@ class ProtectCameraSensorEntity(
     def native_value(self) -> Any:
         """Return the state of the sensor."""
         if self.entity_description.key == "last_ring":
-            # Return datetime for timestamp sensor
+            # Return human-readable datetime string
             # Check if last_ring exists and is not None/0
             if self.camera.last_ring:
                 from datetime import datetime, timezone
                 # Convert milliseconds timestamp to datetime
-                return datetime.fromtimestamp(self.camera.last_ring / 1000, tz=timezone.utc)
+                dt = datetime.fromtimestamp(self.camera.last_ring / 1000, tz=timezone.utc)
+                # Format as human-readable string: "2025-12-07 14:30:45"
+                return dt.strftime("%Y-%m-%d %H:%M:%S")
             # Return None if never rung (will show as "Unknown" in HA)
             return None
 
