@@ -63,27 +63,8 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
 
             # Update NVR
             self.nvr = ProtectNVR.from_api_data(bootstrap)
-
-            # Fetch NVR v1 API data for additional details (doorbell settings)
-            # If NVR endpoint not available, use application info instead
-            try:
-                nvr_v1_data = await self.api.get_nvr_v1()
-                if self.nvr and nvr_v1_data:
-                    self.nvr.update(nvr_v1_data)
-            except Exception as err:
-                # Try fallback to application info if NVR endpoint doesn't exist
-                if "not found" in str(err).lower() or "404" in str(err):
-                    _LOGGER.debug("NVR v1 endpoint not available, trying application info")
-                    try:
-                        app_info = await self.api.get_application_info()
-                        if self.nvr and app_info:
-                            self.nvr.update(app_info)
-                    except Exception as app_err:
-                        _LOGGER.debug("Error fetching application info: %s", app_err)
-                else:
-                    _LOGGER.warning("Error fetching NVR v1 API data: %s", err)
-                # Don't fail the entire update if NVR v1 API fails
-
+            # NVR v1 data is already merged in get_bootstrap()
+            
             # Note: Storage stats are fetched and merged into bootstrap by get_bootstrap()
             # so no additional fetch is needed here
 
@@ -165,9 +146,9 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.info("Removing sensor: %s", self.sensors[sensor_id].name)
                 del self.sensors[sensor_id]
 
-            # Update viewers (using new v1 API)
+            # Update viewers (using data from bootstrap)
             try:
-                viewers_data = await self.api.get_viewers()
+                viewers_data = bootstrap.get("viewers", [])
                 current_viewer_ids = set()
 
                 for viewer_data in viewers_data:
@@ -188,12 +169,11 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                     _LOGGER.info("Removing viewer: %s", self.viewers[viewer_id].name)
                     del self.viewers[viewer_id]
             except Exception as err:
-                _LOGGER.warning("Error fetching viewers: %s", err)
-                # Don't fail the entire update if viewers fail
+                _LOGGER.warning("Error updating viewers: %s", err)
 
-            # Update liveviews (using new v1 API)
+            # Update liveviews (using data from bootstrap)
             try:
-                liveviews_data = await self.api.get_liveviews()
+                liveviews_data = bootstrap.get("liveviews", [])
                 current_liveview_ids = set()
 
                 for liveview_data in liveviews_data:
@@ -214,12 +194,11 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                     _LOGGER.info("Removing liveview: %s", self.liveviews[liveview_id].name)
                     del self.liveviews[liveview_id]
             except Exception as err:
-                _LOGGER.warning("Error fetching liveviews: %s", err)
-                # Don't fail the entire update if liveviews fail
+                _LOGGER.warning("Error updating liveviews: %s", err)
 
-            # Update lights (using new v1 API)
+            # Update lights (using data from bootstrap)
             try:
-                lights_data = await self.api.get_lights_v1()
+                lights_data = bootstrap.get("lights", [])
                 current_light_ids = set()
 
                 for light_data in lights_data:
@@ -240,12 +219,11 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                     _LOGGER.info("Removing light: %s", self.lights[light_id].name)
                     del self.lights[light_id]
             except Exception as err:
-                _LOGGER.warning("Error fetching lights: %s", err)
-                # Don't fail the entire update if lights fail
+                _LOGGER.warning("Error updating lights: %s", err)
 
-            # Update chimes (using new v1 API)
+            # Update chimes (using data from bootstrap)
             try:
-                chimes_data = await self.api.get_chimes()
+                chimes_data = bootstrap.get("chimes", [])
                 current_chime_ids = set()
 
                 for chime_data in chimes_data:
@@ -266,8 +244,7 @@ class ProtectDataUpdateCoordinator(DataUpdateCoordinator):
                     _LOGGER.info("Removing chime: %s", self.chimes[chime_id].name)
                     del self.chimes[chime_id]
             except Exception as err:
-                _LOGGER.warning("Error fetching chimes: %s", err)
-                # Don't fail the entire update if chimes fail
+                _LOGGER.warning("Error updating chimes: %s", err)
 
             # Update doorbell camera flags based on chime associations
             self._update_doorbell_cameras()
