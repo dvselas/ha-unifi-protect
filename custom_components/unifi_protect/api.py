@@ -737,9 +737,9 @@ class UniFiProtectAPI:
         """Fetch full camera details including channels concurrently."""
         _LOGGER.debug("Enriching %d cameras with channels", len(cameras_data))
         
-        # Limit concurrency to 3 to avoid rate limiting (429 errors)
-        # Unifi Protect API is sensitive to concurrent requests
-        semaphore = asyncio.Semaphore(3)
+        # Limit concurrency to 1 (sequential) to strictly avoid rate limiting
+        # Even small bursts cause 429s on some controllers
+        semaphore = asyncio.Semaphore(1)
 
         async def fetch_camera_details(camera: dict[str, Any]) -> None:
             camera_id = camera.get("id")
@@ -748,8 +748,8 @@ class UniFiProtectAPI:
             
             async with semaphore:
                 try:
-                    # Add a small delay to prevent bursting even with semaphore
-                    await asyncio.sleep(0.1)
+                    # Add significant delay to ensure we stay under rate limits
+                    await asyncio.sleep(0.5)
                     full_camera = await self.get_camera_v1(camera_id)
                     if "channels" in full_camera:
                         camera["channels"] = full_camera["channels"]
