@@ -66,9 +66,9 @@ class ProtectCameraEntity(CoordinatorEntity[ProtectDataUpdateCoordinator], Camer
         self._attr_device_info = camera.device_info
         # Set name to None so entity uses device name (not "device_name None")
         self._attr_name = None
-        # Enable streaming support with WebRTC (go2rtc handles RTSPS → WebRTC)
+        # Enable streaming support
         self._attr_supported_features = CameraEntityFeature.STREAM
-        self._attr_frontend_stream_type = "web_rtc"
+        self._attr_frontend_stream_type = "hls"
 
     @property
     def camera(self) -> ProtectCamera:
